@@ -1,0 +1,12 @@
+.DS_Store
+legacy/
+Manuscript/
+cashcab_deft_presentation/
+DEFT_2-11-26.docx
+DEFT Survey.pdf
+Deft_Cablab_Presentation.pptx
+verification_report.md
+run_all.R
+study-1/outputs/
+study-2/outputs/
+*.pptx
