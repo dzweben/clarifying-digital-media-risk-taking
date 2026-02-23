@@ -13,6 +13,10 @@
 2. Set your working directory to this folder.
 3. Run the scripts in `scripts-analyses/` in numeric order.
 
+**Single‑Command Option**
+Run everything at once:
+`Rscript scripts-analyses/run_all.R`
+
 **What Each Script Does**
 - `01_data_prep.R`: loads the analysis dataset, applies outlier removal (|z| > 3 per variable), and writes cleaned data used by later scripts.
 - `02_descriptives_table1.R`: produces descriptive statistics for Table 1.

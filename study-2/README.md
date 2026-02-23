@@ -19,6 +19,10 @@
 2. Set your working directory to this folder.
 3. Run the scripts in `scripts-analyses/` in numeric order.
 
+**Single‑Command Option**
+Run everything at once:
+`Rscript scripts-analyses/run_all.R`
+
 **What Each Script Does**
 - `01_data_prep.R`: computes MTES composite scores, derives YRBS high‑stakes negative risk, reverses foraging to index exploration, applies outlier removal (|z| > 3 per variable), and writes cleaned data used by later scripts.
 - `02_descriptives_table4.R`: produces Study 2 descriptive statistics by cohort.

@@ -21,4 +21,6 @@ DEFT/
 2. Read the study‑specific README for step‑by‑step instructions.
 3. Run the numbered scripts in order. Output tables are created when the scripts run.
 
+If you prefer a single command, each study includes a `scripts-analyses/run_all.R` file that runs every step in order.
+
 This repository is organized for clarity and transparency so that each analysis can be reproduced directly from the included CSV data and scripts.
