@@ -1,0 +1,971 @@
+---
+title: "DEFT Study 2: from scored data to the published tables"
+output: html_document
+---
+
+
+
+Every Study 2 result in Zweben et al. (2026), in the order the paper runs them,
+with the reasoning behind each choice and what changes on cohort 1.
+
+> Zweben, D., Zaneski, L., Chiu, M., Green, H., Brooks-Justice, J., Dachs, A.,
+> Vince, M. A., Olino, T., Marshall, P., Steinberg, L., & Chein, J. M. (2026).
+> Clarifying the association between digital media engagement and risk taking.
+> *Technology in Society, 88*, 103491.
+> [doi:10.1016/j.techsoc.2026.103491](https://doi.org/10.1016/j.techsoc.2026.103491)
+
+Study 1 and Study 2 use different measures and different samples. This is Study 2
+only: the adolescent and young adult cohorts, PNRT and YRBS risk scores, and the
+apple-picking foraging task.
+
+Everything you need to change for a new dataset is in section 1. Nothing after it
+refers to a column name from any particular export.
+
+## The order things were run in, and why
+
+The paper builds one argument, and each analysis exists because of what the one
+before it left open. Running them out of order still produces numbers, but the
+numbers stop answering the question they were meant to answer.
+
+| Paper | Analysis | The question it answers |
+|---|---|---|
+| 3.2.1 | Descriptives, Table 4 | What do these measures look like in each cohort |
+| 3.2.2 | Correlations, Table 5 | Is SSMU related to risk taking and to the traits at all |
+| 3.2.3 | Shapley, in text | Of the things that are related, which carries the most weight |
+| 3.2.4 | Indirect effects, Table S3 | Do the traits reach SSMU through risk taking |
+| 3.2.5 | Subtypes, then hierarchical regression, Table S4 | Which kind of risk, and does any of it survive controlling for traits |
+| 3.2.6 | Social vs parasocial, Table 6 | Is this about screen time, or about the kind of platform |
+
+Read down that column and the argument narrows: does risk matter, how much,
+through what path, which kind, and on which platforms. Two orderings inside it
+are doing real work.
+
+**Shapley comes before the regression, not instead of it.** The predictors are
+correlated, so betas depend on entry order. Shapley is order-free, which makes it
+the honest first look at relative contribution. The hierarchical regression then
+asks the stricter question — whether risk adds anything *after* traits have had
+first claim on the shared variance.
+
+**The subtype intercorrelations come before the subtype analyses.** They
+establish that the three kinds of risk are related but not interchangeable
+(high- and low-stakes negative risk correlate at .55 and .42; low-stakes positive
+risk does not track high-stakes negative risk at all). Without that, splitting
+risk into three predictors in Step 4 would be unmotivated.
+
+**What changes on cohort 1.** The order does not. What changes is that section 3
+has no YRBS substance scoring, so high-stakes negative risk drops out of Table 5,
+Table 6, Step 4 of Table S4, and the total risk variety composite. Set
+`use_high_stakes <- FALSE` in section 1 and everything downstream adjusts. Step 4
+then tests two risk predictors rather than three, which is not comparable to the
+published ΔR², so report it on its own terms.
+
+## What you need
+
+
+```r
+install.packages(c("dplyr", "readr", "tidyr", "psych", "Hmisc",
+                   "cocor", "mediation", "lm.beta", "ShapleyValue"))
+```
+
+
+```r
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(tidyr)
+  library(psych)
+  library(Hmisc)
+  library(cocor)          # Steiger's z for dependent, overlapping correlations
+  library(mediation)      # bootstrapped indirect effects
+  library(lm.beta)        # standardized betas
+  library(ShapleyValue)   # Shapley value regression
+})
+```
+
+Put this file next to the data:
+
+```
+study-2/
+  data/
+    study2_analysis_data.csv
+    raw/yrbs.csv
+    raw/bar.csv
+  outputs/                 # created automatically
+  deft_study2_pipeline.Rmd
+```
+
+A few minutes end to end. Section 9 runs six mediations at 5000 bootstrap
+resamples each and takes most of it.
+
+# 1. Configuration
+
+Paths, relative to this file.
+
+
+```r
+data_dir   <- "data"
+output_dir <- "outputs"
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+
+main_file <- "study2_analysis_data.csv"
+yrbs_file <- file.path("raw", "yrbs.csv")
+bar_file  <- file.path("raw", "bar.csv")
+```
+
+The column map. Left side is the name this pipeline uses; right side is the
+column in your export. **Change the right side only.** Everything below section 2
+uses the names on the left, so this is the only place a column name from a
+particular dataset appears.
+
+
+```r
+cols <- c(
+  pid                = "PID",                                 # also encodes cohort
+  gender             = "sex",                                 # 1 female, 2 male
+  mtes_time          = "MTES_SocialMediaUse_TimeOnApp.sum",   # sum across platforms
+  mtes_checking      = "MTES_PhoneChecking.mean",             # item mean
+  mtes_updates       = "MTES_PublicUpdates.mean",             # item mean
+  social_use         = "SocialUsage",                         # reciprocal platforms
+  parasocial_use     = "ParasocialUsage",                     # one-sided platforms
+  impulsivity        = "barrets.sum",                         # BIS, 8 items, sum
+  reward_sensitivity = "zuckerman.mean",                      # 6-item subset, mean
+  exploration        = "foraging",                            # apples per tree, raw
+  risk_low_pos       = "positiverisk_ever_mean",              # PNRT positive, 14 items
+  risk_low_neg       = "negativerisk_ever_mean"               # PNRT negative, 7 items
+)
+```
+
+Cohort split. PID encodes age group — 2xxx adolescents, 3xxx and above young
+adults — and that carries over to cohort 1.
+
+
+```r
+is_young_adult <- function(d) d$pid > 3000
+is_adolescent  <- function(d) d$pid < 3000
+```
+
+High-stakes risk. Seven YRBS substance behaviours collapsed to ever/never;
+response coding is not uniform, so they are listed in two groups.
+
+Set `use_high_stakes <- FALSE` if your data has no YRBS substance scoring. Do not
+just leave the column missing — total risk variety is built with `na.rm = TRUE`
+and would silently average whatever is left.
+
+
+```r
+use_high_stakes <- TRUE
+
+yrbs_never_is_1 <- c("yrbs_alcfirst", "yrbs_mjuse", "yrbs_rxuse",
+                     "yrbs_inhalants", "yrbs_cocain")   # 1 = never, anything else = yes
+yrbs_yes_is_1   <- c("yrbs_cig_try", "yrbs_vape_use")   # 1 = yes
+```
+
+Helpers.
+
+
+```r
+zscore <- function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+
+# Blank the CELL, keep the ROW. A participant with an implausible foraging score
+# still has valid impulsivity and risk data, so dropping the whole row would
+# throw away good observations.
+remove_outliers <- function(x, cutoff = 3) {
+  z <- zscore(x)
+  ifelse(abs(z) > cutoff, NA, x)
+}
+
+# Three star levels. Study 1 additionally marked p < .10; Study 2 does not.
+format_r <- function(r, p) {
+  stars <- if (is.na(p)) "" else if (p < .001) "***" else if (p < .01) "**" else if (p < .05) "*" else ""
+  sprintf("%.2f%s", r, stars)
+}
+
+format_p_num <- function(p) if (p < .001) "< .001" else sprintf("%.3f", p)
+
+# REDCap exports PIDs as "2002.1" (pid.visit). Harmless if yours are plain.
+clean_pid <- function(x) as.numeric(gsub("\\..*$", "", as.character(x)))
+```
+
+# 2. Load and rename
+
+Values are untouched. The `setdiff` check fails loudly if a mapped column is not
+in the file, which is better than discovering it eight sections later.
+
+
+```r
+raw <- readr::read_csv(file.path(data_dir, main_file), show_col_types = FALSE)
+
+missing_cols <- setdiff(unname(cols), names(raw))
+if (length(missing_cols)) {
+  stop("Columns in the map not found in ", main_file, ": ", paste(missing_cols, collapse = ", "))
+}
+
+d0 <- raw %>%
+  dplyr::select(dplyr::all_of(unname(cols))) %>%
+  setNames(names(cols)) %>%
+  mutate(pid = clean_pid(pid), across(-pid, as.numeric))
+
+nrow(d0)
+```
+
+```
+#> [1] 257
+```
+
+**The SSMU composite is built here, before anything is joined on.** The three MTES
+subscales are on different scales — time is a sum across platforms, the other two
+are item means — so each is z-scored before averaging. Without that, time would
+dominate.
+
+It has to happen at this point rather than later. z-scoring is relative to
+whoever is in the frame, so if a join has already changed the row count the mean
+and SD shift with it. Section 3 joins the YRBS file, and duplicate PIDs there
+will expand the data.
+
+
+```r
+d0 <- d0 %>%
+  mutate(mtes_zscore = rowMeans(cbind(zscore(mtes_time), zscore(mtes_checking),
+                                      zscore(mtes_updates)), na.rm = TRUE))
+```
+
+The composite is relative to your sample, so it is not on the same absolute scale
+across datasets. Compare patterns of association, not means.
+
+# 3. High-stakes negative risk
+
+Scored from items rather than read in pre-scored. Each behaviour collapses to
+ever/never and the score is their mean, so it reads as the proportion of
+high-stakes behaviours ever engaged in — the same variety logic as the two PNRT
+subtypes, which is what makes the three comparable.
+
+
+```r
+if (use_high_stakes) {
+  yrbs <- readr::read_csv(file.path(data_dir, yrbs_file), show_col_types = FALSE)
+  if ("pid_assignment" %in% names(yrbs)) yrbs <- yrbs %>% rename(PID = pid_assignment)
+  yrbs <- yrbs %>% mutate(PID = clean_pid(PID))
+
+  # Spelling of the cocaine column varies between exports.
+  if (!"yrbs_cocain" %in% names(yrbs) && "yrbs_cocaine" %in% names(yrbs)) {
+    yrbs <- yrbs %>% rename(yrbs_cocain = yrbs_cocaine)
+  }
+
+  yrbs_missing <- setdiff(c(yrbs_never_is_1, yrbs_yes_is_1), names(yrbs))
+  if (length(yrbs_missing)) stop("Missing YRBS items: ", paste(yrbs_missing, collapse = ", "))
+
+  scored <- c(
+    lapply(yrbs_never_is_1, function(v) ifelse(!is.na(yrbs[[v]]) & yrbs[[v]] != 1, 1, 0)),
+    lapply(yrbs_yes_is_1,   function(v) ifelse(yrbs[[v]] == 1, 1, 0))
+  )
+  yrbs$risk_high_neg <- rowMeans(as.data.frame(scored), na.rm = TRUE)
+
+  d0 <- d0 %>% left_join(yrbs %>% dplyr::select(PID, risk_high_neg), by = c("pid" = "PID"))
+} else {
+  d0$risk_high_neg <- NA_real_
+}
+
+# The risk subtypes, in the order they appear in the tables.
+risk_subtypes <- if (use_high_stakes) {
+  c("risk_high_neg", "risk_low_neg", "risk_low_pos")
+} else {
+  c("risk_low_neg", "risk_low_pos")
+}
+
+# Item counts, used to weight the total risk percentage in section 4.
+risk_item_counts <- c(risk_high_neg = 7, risk_low_neg = 7, risk_low_pos = 14)
+
+# The tables list the subtypes high-stakes first. Step 4 of the hierarchical
+# regression entered them the other way round; order does not change the fit,
+# only the row order of the printed table.
+risk_entry_order <- rev(risk_subtypes)
+
+risk_subtypes
+```
+
+```
+#> [1] "risk_high_neg" "risk_low_neg"  "risk_low_pos"
+```
+
+# 4. Descriptives — Table 4
+
+Reported on original scales, so this runs before the composites are built and
+before the outlier screen.
+
+Impulsivity needs rescoring here. The models use the BIS sum; Table 4 reports the
+mean on the original 1–4 scale (2.88 and 2.87). Four items are worded in the
+low-impulsivity direction and are reversed before averaging.
+
+
+```r
+desc <- d0
+
+bar <- readr::read_csv(file.path(data_dir, bar_file), show_col_types = FALSE)
+bar_reverse <- c("bar_dothings", "bar_attention", "bar_saythings", "bar_act")
+bar_max <- 4
+bar <- bar %>% mutate(across(all_of(bar_reverse), ~ (bar_max + 1) - ., .names = "rev_{col}"))
+
+bar_scored <- c("bar_plantasks", "rev_bar_dothings", "rev_bar_attention",
+                "bar_selfcontrol", "bar_concentrate", "bar_careful",
+                "rev_bar_saythings", "rev_bar_act")
+
+bar <- bar %>% mutate(impulsivity_mean = rowMeans(across(all_of(bar_scored)), na.rm = TRUE),
+                      PID = clean_pid(PID))
+
+desc <- desc %>% left_join(bar %>% dplyr::select(PID, impulsivity_mean), by = c("pid" = "PID"))
+```
+
+Total risk variety is weighted by item count, not a plain mean of the three
+subtypes. This is why the "Risk Taking, Total Variety" row in Table 4 is not the
+average of the rows beneath it.
+
+
+```r
+w <- risk_item_counts[risk_subtypes]
+desc$total_risk_pct <- as.numeric(as.matrix(desc[, risk_subtypes]) %*% w / sum(w) * 100)
+```
+
+
+```r
+summarise_var <- function(x) {
+  data.frame(Mean = round(mean(x, na.rm = TRUE), 2),
+             SD   = round(sd(x,   na.rm = TRUE), 2),
+             Min  = round(min(x,  na.rm = TRUE), 2),
+             Max  = round(max(x,  na.rm = TRUE), 2))
+}
+
+# Row order matches Table 4 top to bottom.
+desc_vars <- c("mtes_time", "mtes_updates", "mtes_checking",
+               "social_use", "parasocial_use",
+               "impulsivity_mean", "reward_sensitivity",
+               "total_risk_pct", risk_subtypes, "exploration")
+
+rows <- list()
+for (cohort_name in c("Young Adults", "Adolescents")) {
+  dfc <- if (cohort_name == "Young Adults") desc[is_young_adult(desc), ] else desc[is_adolescent(desc), ]
+  for (v in desc_vars) {
+    values <- dfc[[v]]
+    # The subtype scores are proportions; Table 4 prints them as percentages.
+    if (v %in% risk_subtypes) values <- values * 100
+    rows[[length(rows) + 1]] <- data.frame(Cohort = cohort_name, Variable = v,
+                                           summarise_var(values), stringsAsFactors = FALSE)
+  }
+}
+
+table4 <- bind_rows(rows)
+write_csv(table4, file.path(output_dir, "study2_table4_descriptives.csv"))
+knitr::kable(table4[table4$Cohort == "Young Adults", ], row.names = FALSE)
+```
+
+
+
+|Cohort       |Variable           |  Mean|    SD|   Min|    Max|
+|:------------|:------------------|-----:|-----:|-----:|------:|
+|Young Adults |mtes_time          | 22.06|  7.50|  7.00|  46.00|
+|Young Adults |mtes_updates       |  3.20|  1.26|  1.00|   6.50|
+|Young Adults |mtes_checking      |  4.93|  0.95|  2.67|   7.33|
+|Young Adults |social_use         |  8.25|  3.60|  0.00|  17.00|
+|Young Adults |parasocial_use     | 10.99|  5.35|  0.00|  28.00|
+|Young Adults |impulsivity_mean   |  2.87|  0.50|  1.12|   4.00|
+|Young Adults |reward_sensitivity |  0.63|  0.27|  0.00|   1.00|
+|Young Adults |total_risk_pct     | 66.86| 13.08| 35.71|  96.43|
+|Young Adults |risk_high_neg      | 36.94| 22.47|  0.00| 100.00|
+|Young Adults |risk_low_neg       | 58.37| 23.96|  0.00| 100.00|
+|Young Adults |risk_low_pos       | 86.07| 12.63| 50.00| 100.00|
+|Young Adults |exploration        | 46.44| 24.72|  0.00| 145.00|
+
+Exploration appears here on its raw apples-per-tree scale, before the sign flip
+in section 5. Table 4 describes the task; the models use the flipped version.
+
+The two panel headings in the published Table 4 are transposed — its "Young
+Adults" panel holds the adolescent numbers. Age confirms the split here is right
+(PID > 3000 is 18–21, PID < 3000 is 11–17), and Table 5 is labelled correctly, so
+this is just Table 4.
+
+# 5. Building the remaining analysis variables
+
+**Exploration.** Apples per tree: staying longer on a patch means exploiting, so
+higher raw values mean less exploration. Sign-flipped so the variable reads in
+the direction of its name. Zeros become NA — a participant who harvested nothing
+did not do the task.
+
+
+```r
+df <- d0 %>%
+  mutate(exploration = ifelse(exploration == 0, NA, exploration),
+         exploration = -1 * exploration)
+```
+
+**Total risk variety.** Mean of the subtype proportions, then z-scored. The raw
+version is kept because section 9 standardizes within its own complete-case
+subsample and needs the unstandardized values.
+
+
+```r
+df <- df %>%
+  mutate(risk_variety_raw = rowMeans(dplyr::select(., dplyr::all_of(risk_subtypes)), na.rm = TRUE),
+         risk_variety     = zscore(risk_variety_raw))
+```
+
+**Outlier screen.** |z| > 3, per variable, cell-wise.
+
+
+```r
+analysis_vars <- c("mtes_zscore", "impulsivity", "reward_sensitivity", "exploration",
+                   "risk_variety", risk_subtypes, "social_use", "parasocial_use")
+
+df_pre <- df
+for (v in analysis_vars) df[[v]] <- remove_outliers(df[[v]])
+
+removed_cells <- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]) & is.na(df[[v]]))))
+total_cells   <- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]))))
+
+write_csv(data.frame(removed_cells = removed_cells, total_cells = total_cells,
+                     percent_removed = removed_cells / total_cells * 100),
+          file.path(output_dir, "study2_outlier_summary.csv"))
+write_csv(df, file.path(output_dir, "study2_clean.csv"))
+saveRDS(df,   file.path(output_dir, "study2_clean.rds"))
+
+sprintf("%d of %d cells removed (%.3f%%)", removed_cells, total_cells,
+        removed_cells / total_cells * 100)
+```
+
+```
+#> [1] "14 of 2556 cells removed (0.548%)"
+```
+
+# 6. Correlations — Table 5
+
+One published table, two panels, written as two files. Stack them to rebuild
+Table 5.
+
+Correlations are pairwise complete, not listwise. Each cell uses everyone who has
+both variables, so N differs slightly across cells — which is why the table
+carries significance stars rather than a single N.
+
+
+```r
+main_vars <- c("mtes_zscore", "impulsivity", "reward_sensitivity", "exploration")
+row_vars  <- c(main_vars, "risk_variety", risk_subtypes)
+
+get_r_p <- function(d, x, y) {
+  d2 <- d[, c(x, y)]
+  d2 <- d2[complete.cases(d2), ]
+  if (nrow(d2) < 3) return(list(r = NA_real_, p = NA_real_))
+  test <- cor.test(d2[[x]], d2[[y]], method = "pearson")
+  list(r = unname(test$estimate), p = test$p.value)
+}
+
+build_corr_table <- function(d) {
+  r_mat <- matrix(NA_real_, nrow = length(row_vars), ncol = length(main_vars),
+                  dimnames = list(row_vars, main_vars))
+  p_mat <- r_mat
+  for (rv in row_vars) for (cv in main_vars) {
+    if (rv == cv) next                      # diagonal stays blank, as in the paper
+    res <- get_r_p(d, rv, cv)
+    r_mat[rv, cv] <- res$r
+    p_mat[rv, cv] <- res$p
+  }
+  formatted <- matrix("", nrow = nrow(r_mat), ncol = ncol(r_mat), dimnames = dimnames(r_mat))
+  for (i in seq_len(nrow(r_mat))) for (j in seq_len(ncol(r_mat))) {
+    if (!is.na(r_mat[i, j])) formatted[i, j] <- format_r(r_mat[i, j], p_mat[i, j])
+  }
+  list(formatted = as.data.frame(cbind(Variable = rownames(formatted), formatted)),
+       numeric   = as.data.frame(cbind(Variable = rownames(r_mat), r_mat)))
+}
+
+res_adults <- build_corr_table(df[is_young_adult(df), ])
+write_csv(res_adults$formatted, file.path(output_dir, "study2_table5_correlations_adults.csv"))
+write_csv(res_adults$numeric,   file.path(output_dir, "study2_table5_correlations_adults_numeric.csv"))
+
+res_teens <- build_corr_table(df[is_adolescent(df), ])
+write_csv(res_teens$formatted, file.path(output_dir, "study2_table5_correlations_teens.csv"))
+write_csv(res_teens$numeric,   file.path(output_dir, "study2_table5_correlations_teens_numeric.csv"))
+
+knitr::kable(res_adults$formatted, row.names = FALSE, caption = "Panel A. Young Adults")
+```
+
+
+
+Table: Panel A. Young Adults
+
+|Variable           |mtes_zscore |impulsivity |reward_sensitivity |exploration |
+|:------------------|:-----------|:-----------|:------------------|:-----------|
+|mtes_zscore        |            |0.29***     |0.08               |0.06        |
+|impulsivity        |0.29***     |            |0.30***            |-0.08       |
+|reward_sensitivity |0.08        |0.30***     |                   |0.05        |
+|exploration        |0.06        |-0.08       |0.05               |            |
+|risk_variety       |0.26**      |0.34***     |0.34***            |0.10        |
+|risk_high_neg      |0.16        |0.33***     |0.27**             |0.11        |
+|risk_low_neg       |0.27**      |0.32***     |0.28***            |0.10        |
+|risk_low_pos       |0.14        |0.00        |0.21*              |-0.04       |
+
+
+Table: Panel B. Adolescents
+
+|Variable           |mtes_zscore |impulsivity |reward_sensitivity |exploration |
+|:------------------|:-----------|:-----------|:------------------|:-----------|
+|mtes_zscore        |            |0.12        |0.12               |0.02        |
+|impulsivity        |0.12        |            |0.31***            |0.20*       |
+|reward_sensitivity |0.12        |0.31***     |                   |0.17        |
+|exploration        |0.02        |0.20*       |0.17               |            |
+|risk_variety       |0.35***     |0.25**      |0.41***            |0.14        |
+|risk_high_neg      |0.14        |0.10        |0.27**             |0.09        |
+|risk_low_neg       |0.32***     |0.30**      |0.32***            |0.11        |
+|risk_low_pos       |0.30**      |0.10        |0.28**             |0.03        |
+
+# 7. Risk subtype intercorrelations
+
+Not a table — these open section 3.2.5. They carry the argument that the subtypes
+are related but not interchangeable, which is what justifies analysing them
+separately in the next section rather than collapsing them.
+
+
+```r
+run_corr <- function(d, x, y, cohort) {
+  d2 <- d[, c(x, y)]
+  d2 <- d2[complete.cases(d2), ]
+  if (nrow(d2) < 3) return(data.frame(cohort = cohort, var1 = x, var2 = y, r = NA, p = NA, n = nrow(d2)))
+  test <- cor.test(d2[[x]], d2[[y]], method = "pearson")
+  data.frame(cohort = cohort, var1 = x, var2 = y,
+             r = round(unname(test$estimate), 3),
+             p = round(test$p.value, 4), n = nrow(d2))
+}
+
+subtype_pairs <- combn(risk_subtypes, 2, simplify = FALSE)
+
+rows <- list()
+for (pr in subtype_pairs) rows[[length(rows) + 1]] <- run_corr(df[is_adolescent(df), ],  pr[1], pr[2], "Adolescents")
+for (pr in subtype_pairs) rows[[length(rows) + 1]] <- run_corr(df[is_young_adult(df), ], pr[1], pr[2], "Young Adults")
+
+intercor <- bind_rows(rows)
+write_csv(intercor, file.path(output_dir, "study2_risk_subtype_intercorrelations.csv"))
+knitr::kable(intercor, row.names = FALSE)
+```
+
+
+
+|cohort       |var1          |var2         |     r|      p|   n|
+|:------------|:-------------|:------------|-----:|------:|---:|
+|Adolescents  |risk_high_neg |risk_low_neg | 0.424| 0.0000| 118|
+|Adolescents  |risk_high_neg |risk_low_pos | 0.070| 0.4566| 115|
+|Adolescents  |risk_low_neg  |risk_low_pos | 0.285| 0.0020| 115|
+|Young Adults |risk_high_neg |risk_low_neg | 0.553| 0.0000| 140|
+|Young Adults |risk_high_neg |risk_low_pos | 0.111| 0.1919| 140|
+|Young Adults |risk_low_neg  |risk_low_pos | 0.246| 0.0034| 140|
+
+High- and low-stakes negative risk track each other closely. Low-stakes positive
+risk does not track high-stakes negative risk at all.
+
+# 8. Shapley value regression
+
+The predictors are correlated, so ordinary betas depend on entry order and each
+predictor's apparent importance shifts with whatever else is in the model.
+Shapley averages each predictor's contribution to R² across every possible
+ordering, so the result sums to the model R² and does not depend on how the steps
+were ordered.
+
+Read it as share of **explained** variance, not effect size. The adolescent model
+explains 20.8% of variance in MTES; risk variety accounts for about half of that
+20.8%, not half of MTES.
+
+This uses the composite rather than the three subtypes. Three heavily overlapping
+risk terms would split one construct's contribution across them and make every
+risk share look small. The `na.omit` is listwise by necessity — Shapley refits
+over every subset of predictors and needs one constant sample to compare them.
+
+
+```r
+run_shapley <- function(data, cohort_label) {
+  shap_df <- data %>%
+    dplyr::select(mtes_zscore, risk_variety, reward_sensitivity,
+                  impulsivity, exploration, gender) %>%
+    na.omit()
+
+  shap_values <- shapleyvalue(y = shap_df$mtes_zscore,
+                              x = shap_df %>% dplyr::select(-mtes_zscore) %>% as.data.frame())
+
+  # Row 1 = raw Shapley value; row 2 = proportion of model R2, as a percent.
+  shap_out <- as.data.frame(shap_values)
+  shap_out <- rbind(Shapley_Value = shap_out[1, ],
+                    Percent_R2    = round(as.numeric(shap_out[2, ]) * 100, 2))
+
+  write_csv(as.data.frame(shap_out),
+            file.path(output_dir, paste0("study2_shapley_", cohort_label, ".csv")))
+  shap_out
+}
+
+shap_teens  <- run_shapley(df[is_adolescent(df), ],  "adolescents")
+shap_adults <- run_shapley(df[is_young_adult(df), ], "adults")
+knitr::kable(shap_adults, caption = "Young adults")
+```
+
+
+
+Table: Young adults
+
+|              | risk_variety| reward_sensitivity| impulsivity| exploration| gender|
+|:-------------|------------:|------------------:|-----------:|-----------:|------:|
+|Shapley_Value |       0.0461|             0.0032|      0.0679|       0.005| 0.0126|
+|Percent_R2    |      34.2100|             2.3400|     50.3500|       3.720| 9.3800|
+
+# 9. Indirect effects — Table S3
+
+Cognitive trait → risk variety → SSMU, separately for each trait and each cohort.
+Six mediations, 5000 bootstrap resamples each. Slowest section here.
+
+Risk taking is the mediator and social media engagement is the outcome. The data
+are cross-sectional, so this is statistical accounting, not causal sequence. The
+paper says "accounted for" throughout and never "led to" — keep that.
+
+Predictors are standardized *after* subsetting to cohort and *after* `na.omit`,
+so everything is z-scored within the exact sample the models are fit on.
+Standardizing back in section 5 across both cohorts would put adolescents and
+young adults on a shared scale and change the coefficients. That is why
+`risk_variety_raw` is carried forward.
+
+
+```r
+set.seed(2025)   # without this the bootstrap CIs move on every run
+
+run_mediation_set <- function(data, cohort_label) {
+  med_df <- data %>%
+    dplyr::select(mtes_zscore, risk_variety_raw, reward_sensitivity, impulsivity, exploration) %>%
+    mutate(risk_variety_z       = zscore(risk_variety_raw),
+           reward_sensitivity_z = zscore(reward_sensitivity),
+           impulsivity_z        = zscore(impulsivity),
+           exploration_z        = zscore(exploration)) %>%
+    na.omit()
+
+  # Two models per mediation: predictor -> mediator, and predictor + mediator ->
+  # outcome. Written longhand rather than looped -- mediate() re-evaluates the
+  # model calls internally, and building the formulas programmatically breaks it.
+
+  med_model_imp <- lm(risk_variety_z ~ impulsivity_z, data = med_df)
+  out_model_imp <- lm(mtes_zscore ~ impulsivity_z + risk_variety_z, data = med_df)
+  med_imp <- mediate(med_model_imp, out_model_imp, treat = "impulsivity_z",
+                     mediator = "risk_variety_z", boot = TRUE, sims = 5000)
+
+  med_model_rs <- lm(risk_variety_z ~ reward_sensitivity_z, data = med_df)
+  out_model_rs <- lm(mtes_zscore ~ reward_sensitivity_z + risk_variety_z, data = med_df)
+  med_rs <- mediate(med_model_rs, out_model_rs, treat = "reward_sensitivity_z",
+                    mediator = "risk_variety_z", boot = TRUE, sims = 5000)
+
+  med_model_exp <- lm(risk_variety_z ~ exploration_z, data = med_df)
+  out_model_exp <- lm(mtes_zscore ~ exploration_z + risk_variety_z, data = med_df)
+  med_exp <- mediate(med_model_exp, out_model_exp, treat = "exploration_z",
+                     mediator = "risk_variety_z", boot = TRUE, sims = 5000)
+
+  # d0 = indirect (ACME), z0 = direct (ADE), n0 = proportion mediated.
+  extract_results <- function(m, predictor_name) {
+    data.frame(
+      Predictor = predictor_name,
+      Indirect  = sprintf("%.2f (%.2f, %.2f), %.3f", m$d0, m$d0.ci[1], m$d0.ci[2], m$d0.p),
+      Direct    = sprintf("%.2f (%.2f, %.2f), %.2f", m$z0, m$z0.ci[1], m$z0.ci[2], m$z0.p),
+      Prop      = sprintf("%.1f%%, %.2f", m$n0 * 100, m$n0.p),
+      stringsAsFactors = FALSE)
+  }
+
+  out <- bind_rows(extract_results(med_imp, "impulsivity"),
+                   extract_results(med_rs,  "reward_sensitivity"),
+                   extract_results(med_exp, "exploration"))
+
+  write_csv(out, file.path(output_dir, paste0("study2_mediation_", cohort_label, ".csv")))
+  out
+}
+
+med_teens  <- run_mediation_set(df[is_adolescent(df), ],  "adolescents")
+med_adults <- run_mediation_set(df[is_young_adult(df), ], "adults")
+```
+
+
+Table: Young adults
+
+|Predictor          |Indirect                  |Direct                    |Prop         |
+|:------------------|:-------------------------|:-------------------------|:------------|
+|impulsivity        |0.04 (0.00, 0.09), 0.042  |0.15 (0.04, 0.25), 0.01   |20.7%, 0.04  |
+|reward_sensitivity |0.06 (0.01, 0.11), 0.008  |-0.01 (-0.11, 0.10), 0.93 |112.1%, 0.32 |
+|exploration        |0.02 (-0.01, 0.05), 0.211 |0.04 (-0.08, 0.15), 0.54  |32.2%, 0.47  |
+
+
+
+Table: Adolescents
+
+|Predictor          |Indirect                  |Direct                    |Prop         |
+|:------------------|:-------------------------|:-------------------------|:------------|
+|impulsivity        |0.10 (0.03, 0.18), 0.000  |0.02 (-0.18, 0.19), 0.89  |86.0%, 0.28  |
+|reward_sensitivity |0.15 (0.06, 0.25), 0.000  |-0.03 (-0.20, 0.14), 0.72 |126.1%, 0.19 |
+|exploration        |0.04 (-0.03, 0.13), 0.296 |-0.03 (-0.20, 0.13), 0.69 |446.7%, 0.84 |
+
+Proportion mediated exceeds 100% for reward sensitivity in both cohorts. That
+happens when the direct and indirect paths have opposite signs. It is not an
+error and should not be "fixed" — the paper reports it alongside a nonsignificant
+p for the proportion.
+
+# 10. Hierarchical regression — Table S4
+
+Once you account for who someone is dispositionally, does what they do still
+explain anything about their social media engagement?
+
+1. sex + impulsivity
+2. \+ reward sensitivity
+3. \+ exploration
+4. \+ the risk subtypes
+
+Sex is a covariate from Step 1, not a predictor of interest. Entering the
+cognitive traits before risk is the conservative ordering — it gives the
+dispositional account first claim on the shared variance, so whatever risk picks
+up in Step 4 is over and above traits. The ΔR² at Step 4 is the test.
+
+Listwise deletion happens once, up front, so all four steps are fit on the same
+participants. Otherwise the ΔR² comparisons would be across different samples and
+`anova()` would be meaningless.
+
+
+```r
+build_hier_table <- function(data, out_name) {
+  model_vars <- c("mtes_zscore", "gender", "impulsivity", "reward_sensitivity",
+                  "exploration", risk_entry_order)
+
+  d <- data %>% dplyr::select(dplyr::all_of(model_vars)) %>% na.omit()
+
+  base <- "mtes_zscore ~ gender + impulsivity"
+  f <- c(base,
+         paste(base, "+ reward_sensitivity"),
+         paste(base, "+ reward_sensitivity + exploration"),
+         paste(base, "+ reward_sensitivity + exploration +",
+               paste(risk_entry_order, collapse = " + ")))
+
+  models     <- lapply(f, function(x) lm(as.formula(x), data = d))
+  models_std <- lapply(models, lm.beta)          # betas in the table are standardized
+  anova_res  <- do.call(anova, models)           # step-to-step delta R2 tests
+
+  format_beta <- function(beta, p) {
+    stars <- if (p < .001) "***" else if (p < .01) "**" else if (p < .05) "*" else if (p < .10) "+" else ""
+    sprintf("%.2f%s", beta, stars)
+  }
+
+  rows <- list()
+  for (i in seq_along(models)) {
+    summ <- summary(models[[i]]); summ_std <- summary(models_std[[i]])
+
+    rows[[length(rows) + 1]] <- data.frame(Step = paste0("Step ", i), Predictor = "",
+                                           Beta = "", SE = "", t = "", p = "", stringsAsFactors = FALSE)
+
+    for (j in 2:nrow(summ$coefficients)) {       # start at 2 to skip the intercept
+      rows[[length(rows) + 1]] <- data.frame(
+        Step = "",
+        Predictor = rownames(summ$coefficients)[j],
+        Beta = format_beta(summ_std$coefficients[j, "Standardized"], summ$coefficients[j, "Pr(>|t|)"]),
+        # SE and t come from the unstandardized fit; only beta is standardized.
+        SE = sprintf("%.2f", summ$coefficients[j, "Std. Error"]),
+        t  = sprintf("%.2f", summ$coefficients[j, "t value"]),
+        p  = format_p_num(summ$coefficients[j, "Pr(>|t|)"]),
+        stringsAsFactors = FALSE)
+    }
+
+    r2 <- summ$r.squared
+    fstat <- summ$fstatistic
+    fval <- fstat[1]; df1 <- fstat[2]; df2 <- fstat[3]
+    pval <- pf(fval, df1, df2, lower.tail = FALSE)
+
+    delta_r2 <- ""
+    if (i > 1) {
+      delta <- r2 - summary(models[[i - 1]])$r.squared
+      delta_r2 <- paste0(", Delta R2 = ", sprintf("%.3f", delta),
+                         ", p = ", format_p_num(anova_res$`Pr(>F)`[i]))
+    }
+
+    rows[[length(rows) + 1]] <- data.frame(
+      Step = "",
+      Predictor = paste0("R2 = ", sprintf("%.3f", r2),
+                         ", F(", df1, ", ", df2, ") = ", sprintf("%.2f", fval),
+                         ", p = ", format_p_num(pval), delta_r2),
+      Beta = "", SE = "", t = "", p = "", stringsAsFactors = FALSE)
+  }
+
+  out <- bind_rows(rows)
+  write_csv(out, file.path(output_dir, out_name))
+  out
+}
+
+hier_teens  <- build_hier_table(df[is_adolescent(df), ],  "study2_table14_hierarchical_regression_adolescents.csv")
+hier_adults <- build_hier_table(df[is_young_adult(df), ], "study2_table13_hierarchical_regression_adults.csv")
+knitr::kable(hier_adults, row.names = FALSE, caption = "Young adults")
+```
+
+
+
+Table: Young adults
+
+|Step   |Predictor                                                            |Beta    |SE   |t     |p      |
+|:------|:--------------------------------------------------------------------|:-------|:----|:-----|:------|
+|Step 1 |                                                                     |        |     |      |       |
+|       |gender                                                               |-0.13   |0.12 |-1.51 |0.132  |
+|       |impulsivity                                                          |0.31*** |0.01 |3.61  |< .001 |
+|       |R2 = 0.095, F(2, 131) = 6.90, p = 0.001                              |        |     |      |       |
+|Step 2 |                                                                     |        |     |      |       |
+|       |gender                                                               |-0.13   |0.12 |-1.51 |0.134  |
+|       |impulsivity                                                          |0.31*** |0.02 |3.47  |< .001 |
+|       |reward_sensitivity                                                   |-0.01   |0.21 |-0.09 |0.927  |
+|       |R2 = 0.095, F(3, 130) = 4.57, p = 0.004, Delta R2 = 0.000, p = 0.926 |        |     |      |       |
+|Step 3 |                                                                     |        |     |      |       |
+|       |gender                                                               |-0.11   |0.12 |-1.34 |0.184  |
+|       |impulsivity                                                          |0.31*** |0.02 |3.53  |< .001 |
+|       |reward_sensitivity                                                   |-0.01   |0.21 |-0.17 |0.866  |
+|       |exploration                                                          |0.09    |0.00 |1.01  |0.314  |
+|       |R2 = 0.102, F(4, 129) = 3.68, p = 0.007, Delta R2 = 0.007, p = 0.307 |        |     |      |       |
+|Step 4 |                                                                     |        |     |      |       |
+|       |gender                                                               |-0.18+  |0.12 |-1.96 |0.053  |
+|       |impulsivity                                                          |0.29**  |0.02 |3.08  |0.003  |
+|       |reward_sensitivity                                                   |-0.07   |0.22 |-0.82 |0.412  |
+|       |exploration                                                          |0.06    |0.00 |0.70  |0.482  |
+|       |risk_low_pos                                                         |0.11    |0.46 |1.26  |0.210  |
+|       |risk_low_neg                                                         |0.20+   |0.31 |1.76  |0.081  |
+|       |risk_high_neg                                                        |-0.03   |0.32 |-0.24 |0.810  |
+|       |R2 = 0.147, F(7, 126) = 3.11, p = 0.005, Delta R2 = 0.045, p = 0.090 |        |     |      |       |
+
+The cohorts diverge here, and it is the substantive finding: for young adults
+risk does not add over traits, because impulsivity absorbs it. For adolescents
+it does.
+
+**On structuring Step 4.** All subtypes go in together. They correlate between
+.25 and .55, so each beta is that subtype's unique contribution net of the
+others, and none reaches significance in the young adult model even though the
+block as a whole sits near threshold. Two alternatives, both fine if stated:
+composite in Step 4 and subtypes in Step 5, which tests "does risk matter" before
+"which kind"; or three separate Step 4 models, one subtype each, which reads each
+subtype cleanly but runs three tests where the paper ran one. What is not fine is
+trying each and reporting whichever makes risk significant.
+
+# 11. Social versus parasocial — Table 6
+
+If the link between social media and risk were just screen time, it would not
+matter what kind of platform the time was spent on. It does — risk tracks
+reciprocal platforms and not one-sided ones, in both cohorts.
+
+Steiger's z is the right test because the two correlations being compared share a
+variable (the risk subtype) and come from the same people. Comparing two r values
+directly would ignore that dependency and overstate the difference. The test
+needs a third correlation, social use with parasocial use, to know how dependent
+they are.
+
+
+```r
+run_steiger <- function(data) {
+  rows <- list()
+  for (pred in risk_subtypes) {
+    r_social            <- cor(data[[pred]],    data$social_use,     use = "pairwise.complete.obs")
+    r_parasocial        <- cor(data[[pred]],    data$parasocial_use, use = "pairwise.complete.obs")
+    r_social_parasocial <- cor(data$social_use, data$parasocial_use, use = "pairwise.complete.obs")
+    n <- nrow(na.omit(data[, c(pred, "social_use", "parasocial_use")]))
+
+    test <- cocor.dep.groups.overlap(r.jk = r_social,             # risk x social
+                                     r.jh = r_parasocial,         # risk x parasocial
+                                     r.kh = r_social_parasocial,  # social x parasocial
+                                     n    = n)
+    steiger <- test@steiger1980
+
+    rows[[length(rows) + 1]] <- data.frame(
+      Risk_Subtype = pred,
+      r_social     = round(r_social, 2),
+      r_parasocial = round(r_parasocial, 2),
+      # Sign flipped so a negative z means social > parasocial, matching the
+      # direction printed in Table 6. cocor orders the comparison the other way.
+      steiger_z    = round(-1 * steiger$statistic, 2),
+      p_value      = round(steiger$p.value, 3),
+      n            = n)
+  }
+  bind_rows(rows)
+}
+
+steiger_adults <- run_steiger(df[is_young_adult(df), ])
+steiger_teens  <- run_steiger(df[is_adolescent(df), ])
+write_csv(steiger_adults, file.path(output_dir, "study2_table7_steiger_adults.csv"))
+write_csv(steiger_teens,  file.path(output_dir, "study2_table8_steiger_teens.csv"))
+
+knitr::kable(steiger_adults, row.names = FALSE, caption = "Panel A. Young Adults")
+```
+
+
+
+Table: Panel A. Young Adults
+
+|Risk_Subtype  | r_social| r_parasocial| steiger_z| p_value|   n|
+|:-------------|--------:|------------:|---------:|-------:|---:|
+|risk_high_neg |     0.27|         0.01|     -2.21|   0.027| 139|
+|risk_low_neg  |     0.27|         0.11|     -1.35|   0.178| 139|
+|risk_low_pos  |     0.21|        -0.06|     -2.18|   0.029| 139|
+
+
+Table: Panel B. Adolescents
+
+|Risk_Subtype  | r_social| r_parasocial| steiger_z| p_value|   n|
+|:-------------|--------:|------------:|---------:|-------:|---:|
+|risk_high_neg |     0.17|         0.04|     -1.29|   0.198| 116|
+|risk_low_neg  |     0.31|         0.10|     -2.05|   0.041| 116|
+|risk_low_pos  |     0.28|         0.00|     -2.62|   0.009| 113|
+
+# Running this on cohort 1
+
+**High-stakes risk.** Cohort 1 has no YRBS substance scoring. Set
+`use_high_stakes <- FALSE` in section 1 and every table adjusts — the row drops
+out of Tables 5 and 6, the term drops out of Step 4, and total risk variety
+becomes a two-subtype composite. Step 4 then tests two risk predictors rather
+than three, so the ΔR² is not comparable to the published one; report it on its
+own terms.
+
+Study 1 used the BRP rather than the YRBS for this variable, so if cohort 1
+carries a different high-stakes measure there is precedent in the paper for
+swapping it in.
+
+**Participants without a phone.** Jason and Lina have already worked out how
+people who report no phone at the start of the survey are handled. Confirm with
+them that it is taken care of in the cohort 1 export before running anything,
+since the MTES composite is z-scored across whoever is in the file.
+
+**Exclusions.** In DEFT we dropped anyone missing one of the at-home cognition
+measures — Zuckerman, BIS, foraging. That happened through listwise deletion
+inside each model rather than as an explicit filtering step, so N varies a little
+between tables.
+
+# Appendix: PNRT ever scores
+
+`risk_low_pos` and `risk_low_neg` arrive already scored. This is how, since the
+item-to-valence mapping is not recorded anywhere else.
+
+Every PNRT activity is asked twice: have you ever done this, and if so, how often
+in the past six months. The standard variety score uses the second question — an
+activity counts as 1 if there was any engagement in the past six months, 0
+otherwise.
+
+That was not available. In this version of the survey the frequency follow-up had
+no "zero times" option, so once a participant said yes to ever having done
+something they could not then report doing it zero times in the past six months.
+The frequency item cannot separate recent engagement from none, so variety was
+scored from the ever items instead.
+
+If the "zero times" option has since been added, the standard six-month score is
+available and is the better measure. It is not the same variable, though — report
+it as its own measure rather than as a replication of this one.
+
+Note `pnrt_personal` is scored negative and `pnrt_secret` positive.
+
+
+```r
+pnrt_neg_items <- c("pnrt_phone", "pnrt_cheat", "pnrt_skip", "pnrt_personal",
+                    "pnrt_snuckout", "pnrt_sexy", "pnrt_mph")            # 7
+
+pnrt_pos_items <- c("pnrt_audition", "pnrt_newclub", "pnrt_truth", "pnrt_food",
+                    "pnrt_leader", "pnrt_like", "pnrt_challenge", "pnrt_newlook",
+                    "pnrt_newsocial", "pnrt_secret", "pnrt_beliefs",
+                    "pnrt_friend", "pnrt_sport", "pnrt_newpeople")       # 14
+
+pnrt <- readr::read_csv(file.path(data_dir, "raw", "pnrt.csv"), show_col_types = FALSE) %>%
+  rename(PID = pid_assignment) %>%
+  mutate(PID = clean_pid(PID)) %>%
+  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
+         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
+```
+
+This mapping reproduces both scored columns exactly on all 254 complete cases.
