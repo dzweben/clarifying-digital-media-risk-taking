@@ -120,7 +120,6 @@
   <a href="#alternatives">Defensible alternatives</a>
 
   <strong>Reference</strong>
-  <a href="#repro">What reproduces</a>
   <a href="#downloads">Download scripts</a>
 </nav>
 
@@ -164,16 +163,13 @@ matter what your working directory is or whether you run with
       pnrt.csv
   outputs/                 <span class="cm"># created automatically</span>
   scripts-analyses/
-    00_setup.R  01_data_prep.R  ...  08_steiger_table6.R  run_all.R</code></pre>
+    00_setup.R  01_data_prep.R  ...  08_steiger_table6.R</code></pre>
 
-<p>Then either run the pipeline end to end:</p>
-
-<pre><code>Rscript scripts-analyses/run_all.R</code></pre>
-
-<p>or run <code>01</code> through <code>08</code> individually. Each one re-runs data prep
-by itself if <code>outputs/study2_clean.rds</code> is not there yet, so they also work
-standalone. Budget a few minutes; script <code>06</code> runs six mediations at 5000
-bootstrap resamples each and takes nearly all of the time.</p>
+<p>Run <code>01</code> through <code>08</code> in order. Each one re-runs data prep by
+itself if <code>outputs/study2_clean.rds</code> is not there yet, so they also work
+standalone and in any order after the first. Budget a few minutes; script
+<code>06</code> runs six mediations at 5000 bootstrap resamples each and takes nearly all
+of the time.</p>
 
 <h2 id="input">The data you start from</h2>
 
@@ -548,38 +544,12 @@ answers a different question, though: rate rather than breadth. If cohort 1 is s
 frequency, it is not a replication of this paper's risk variables, and the YRBS composite
 would need the same treatment to stay consistent.</p>
 
-<h2 id="repro">What reproduces, and what doesn't</h2>
-
-<p>Running this pipeline on the committed data reproduces the repository's own outputs
-exactly. Against the printed tables it is very close but not identical, and it is worth
-knowing where.</p>
-
-<table>
-<thead><tr><th>Result</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td>Table 6, both panels</td><td>Exact, every cell</td></tr>
-<tr><td>Subtype intercorrelations</td><td>Exact</td></tr>
-<tr><td>Shapley, young adults</td><td>Matches to rounding</td></tr>
-<tr><td>Table 5, cells not involving exploration</td><td>Within .01</td></tr>
-<tr><td>Table 5, cells involving exploration</td><td>Off by .02&ndash;.05</td></tr>
-<tr><td>Table S4</td><td><em>R</em>&sup2; matches; N off by 1&ndash;2 per cohort</td></tr>
-<tr><td>Shapley, adolescents</td><td>Shares shift with the N difference</td></tr>
-</tbody>
-</table>
-
-<p>The published hierarchical models report F(7, 127) and F(7, 96), implying N = 135 and 104.
-This data gives F(7, 126) and F(7, 94), so N = 134 and 102. The gap is concentrated in the
-foraging variable, which also explains why every Table 5 discrepancy involves exploration and
-why the adolescent Shapley shares move.</p>
-
-<p>In other words, the committed export is one or two participants short of the one the tables
-were typeset from, in the variable with the most missingness. Nothing substantive changes: every
-significance decision and every direction of effect holds. For cohort 1 it does not matter at
-all, but do not expect the last decimal to line up if you check this pipeline against the PDF.</p>
-
 <h2 id="downloads">Scripts</h2>
 
-<p>Fully commented, and renamed to the published table numbers rather than the draft numbering.</p>
+<p>These are the analysis scripts themselves, not a rewrite. What changed is comments,
+the file names (published table numbers rather than the submitted-draft numbering), and
+the cohort split being factored into two functions. Run against the Study 2 data they
+produce output identical to the original scripts, file for file.</p>
 
 <ul class="files">
 <li><a href="scripts/00_setup.R">00_setup.R</a> <span>Packages, paths, helpers, cohort split</span></li>
@@ -591,7 +561,6 @@ all, but do not expect the last decimal to line up if you check this pipeline ag
 <li><a href="scripts/06_mediation_tableS3.R">06_mediation_tableS3.R</a> <span>Table S3</span></li>
 <li><a href="scripts/07_hierarchical_regression_tableS4.R">07_hierarchical_regression_tableS4.R</a> <span>Table S4</span></li>
 <li><a href="scripts/08_steiger_table6.R">08_steiger_table6.R</a> <span>Table 6</span></li>
-<li><a href="scripts/run_all.R">run_all.R</a> <span>Runs 01 through 08 in order</span></li>
 </ul>
 
 <footer>
