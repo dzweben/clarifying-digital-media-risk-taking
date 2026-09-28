@@ -116,10 +116,11 @@ footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
   <span class="navtitle">Contents</span>
   <a href="#top">Overview</a>
   <a href="#the-order-things-were-run-in-and-why" class="lvl2">The order things were run in, and why</a>
+  <a href="#scoring-and-cleaning-are-yours" class="lvl2">Scoring and cleaning are yours</a>
   <a href="#what-you-need" class="lvl2">What you need</a>
   <a href="#1-configuration">1. Configuration</a>
   <a href="#2-load-and-rename">2. Load and rename</a>
-  <a href="#3-high-stakes-negative-risk">3. High-stakes negative risk</a>
+  <a href="#3-risk-subtypes">3. Risk subtypes</a>
   <a href="#4-descriptives-table-4">4. Descriptives — Table 4</a>
   <a href="#5-building-the-remaining-analysis-variables">5. Building the remaining analysis variables</a>
   <a href="#6-correlations-table-5">6. Correlations — Table 5</a>
@@ -129,7 +130,7 @@ footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
   <a href="#10-hierarchical-regression-table-s4">10. Hierarchical regression — Table S4</a>
   <a href="#11-social-versus-parasocial-table-6">11. Social versus parasocial — Table 6</a>
   <a href="#running-this-on-cohort-1">Running this on cohort 1</a>
-  <a href="#appendix-pnrt-ever-scores">Appendix: PNRT ever scores</a>
+  <a href="#hold-up-the-pnrt-variety-score-in-case-you-need-it">Hold up — the PNRT variety score, in case you need it</a>
 </nav>
 <main id="top">
 
@@ -216,12 +217,25 @@ establish that the three kinds of risk are related but not interchangeable
 (high- and low-stakes negative risk correlate at .55 and .42; low-stakes positive
 risk does not track high-stakes negative risk at all). Without that, splitting
 risk into three predictors in Step 4 would be unmotivated.</p>
-<p><strong>What changes on cohort 1.</strong> The order does not. What changes is that section 3
-has no YRBS substance scoring, so high-stakes negative risk drops out of Table 5,
+<p><strong>What changes on cohort 1.</strong> The order does not. What changes is that there is
+no YRBS substance scoring, so high-stakes negative risk drops out of Table 5,
 Table 6, Step 4 of Table S4, and the total risk variety composite. Set
 <code>use_high_stakes &lt;- FALSE</code> in section 1 and everything downstream adjusts. Step 4
 then tests two risk predictors rather than three, which is not comparable to the
 published ΔR², so report it on its own terms.</p>
+<h2 id="scoring-and-cleaning-are-yours">Scoring and cleaning are yours</h2>
+<p>This starts from an analysis-ready file: one row per participant, every scale
+already scored, outliers already handled. It does not score anything.</p>
+<p>DEFT used a good many more scales than show up in these models, and they were all
+scored to the lab's standards. Rebuilding a couple of them inside an analysis
+script would only ever be a partial picture of that, so it is left out entirely.
+Score it the way the lab scores it.</p>
+<p>Same for outlier handling. For reference, DEFT screened at |z| &gt; 3 per variable
+and blanked the offending <em>cell</em> rather than dropping the row, so a participant
+with one implausible foraging value still contributed everywhere else. That
+removed about half a percent of cells. Use whatever your standard is.</p>
+<p>If any of the scoring is unclear, ask me — happy to sit down and go through it
+rather than have it guessed at.</p>
 <h2 id="what-you-need">What you need</h2>
 <pre><code>install.packages(c(&quot;dplyr&quot;, &quot;readr&quot;, &quot;tidyr&quot;, &quot;psych&quot;, &quot;Hmisc&quot;,
                    &quot;cocor&quot;, &quot;mediation&quot;, &quot;lm.beta&quot;, &quot;ShapleyValue&quot;))
@@ -240,11 +254,8 @@ published ΔR², so report it on its own terms.</p>
 </code></pre>
 <p>Put this file next to the data:</p>
 <pre><code>study-2/
-  data/
-    study2_analysis_data.csv
-    raw/yrbs.csv
-    raw/bar.csv
-  outputs/                 # created automatically
+  data/study2_scored.csv     # your scored, cleaned, one-row-per-participant file
+  outputs/                   # created automatically
   deft_study2_pipeline.Rmd
 </code></pre>
 <p>A few minutes end to end. Section 9 runs six mediations at 5000 bootstrap
@@ -255,9 +266,7 @@ resamples each and takes most of it.</p>
 output_dir &lt;- &quot;outputs&quot;
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
-main_file &lt;- &quot;study2_analysis_data.csv&quot;
-yrbs_file &lt;- file.path(&quot;raw&quot;, &quot;yrbs.csv&quot;)
-bar_file  &lt;- file.path(&quot;raw&quot;, &quot;bar.csv&quot;)
+main_file &lt;- &quot;study2_scored.csv&quot;
 </code></pre>
 <p>The column map. Left side is the name this pipeline uses; right side is the
 column in your export. <strong>Change the right side only.</strong> Everything below section 2
@@ -275,35 +284,27 @@ particular dataset appears.</p>
   reward_sensitivity = &quot;zuckerman.mean&quot;,                      # 6-item subset, mean
   exploration        = &quot;foraging&quot;,                            # apples per tree, raw
   risk_low_pos       = &quot;positiverisk_ever_mean&quot;,              # PNRT positive, 14 items
-  risk_low_neg       = &quot;negativerisk_ever_mean&quot;               # PNRT negative, 7 items
+  risk_low_neg       = &quot;negativerisk_ever_mean&quot;,              # PNRT negative, 7 items
+  risk_high_neg      = &quot;yrbs_var&quot;                             # YRBS substance, 7 items
 )
 </code></pre>
+<p>Exploration is the only one of these that is not a finished score — it comes in
+as the raw task output and gets sign-flipped in section 4.</p>
 <p>Cohort split. PID encodes age group — 2xxx adolescents, 3xxx and above young
 adults — and that carries over to cohort 1.</p>
 <pre><code>is_young_adult &lt;- function(d) d$pid &gt; 3000
 is_adolescent  &lt;- function(d) d$pid &lt; 3000
 </code></pre>
-<p>High-stakes risk. Seven YRBS substance behaviours collapsed to ever/never;
-response coding is not uniform, so they are listed in two groups.</p>
-<p>Set <code>use_high_stakes &lt;- FALSE</code> if your data has no YRBS substance scoring. Do not
-just leave the column missing — total risk variety is built with <code>na.rm = TRUE</code>
-and would silently average whatever is left.</p>
+<p>Set <code>use_high_stakes &lt;- FALSE</code> if you have no high-stakes risk score. Do not just
+leave the column out of the map — total risk variety is built with
+<code>na.rm = TRUE</code>, so a missing column would not error, it would quietly average
+whatever is left.</p>
 <pre><code>use_high_stakes &lt;- TRUE
 
-yrbs_never_is_1 &lt;- c(&quot;yrbs_alcfirst&quot;, &quot;yrbs_mjuse&quot;, &quot;yrbs_rxuse&quot;,
-                     &quot;yrbs_inhalants&quot;, &quot;yrbs_cocain&quot;)   # 1 = never, anything else = yes
-yrbs_yes_is_1   &lt;- c(&quot;yrbs_cig_try&quot;, &quot;yrbs_vape_use&quot;)   # 1 = yes
+if (!use_high_stakes) cols &lt;- cols[names(cols) != &quot;risk_high_neg&quot;]
 </code></pre>
 <p>Helpers.</p>
 <pre><code>zscore &lt;- function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
-
-# Blank the CELL, keep the ROW. A participant with an implausible foraging score
-# still has valid impulsivity and risk data, so dropping the whole row would
-# throw away good observations.
-remove_outliers &lt;- function(x, cutoff = 3) {
-  z &lt;- zscore(x)
-  ifelse(abs(z) &gt; cutoff, NA, x)
-}
 
 # Three star levels. Study 1 additionally marked p &lt; .10; Study 2 does not.
 format_r &lt;- function(r, p) {
@@ -348,34 +349,8 @@ will expand the data.</p>
 </code></pre>
 <p>The composite is relative to your sample, so it is not on the same absolute scale
 across datasets. Compare patterns of association, not means.</p>
-<h1 id="3-high-stakes-negative-risk">3. High-stakes negative risk</h1>
-<p>Scored from items rather than read in pre-scored. Each behaviour collapses to
-ever/never and the score is their mean, so it reads as the proportion of
-high-stakes behaviours ever engaged in — the same variety logic as the two PNRT
-subtypes, which is what makes the three comparable.</p>
-<pre><code>if (use_high_stakes) {
-  yrbs &lt;- readr::read_csv(file.path(data_dir, yrbs_file), show_col_types = FALSE)
-  if (&quot;pid_assignment&quot; %in% names(yrbs)) yrbs &lt;- yrbs %&gt;% rename(PID = pid_assignment)
-  yrbs &lt;- yrbs %&gt;% mutate(PID = clean_pid(PID))
-
-  # Spelling of the cocaine column varies between exports.
-  if (!&quot;yrbs_cocain&quot; %in% names(yrbs) &amp;&amp; &quot;yrbs_cocaine&quot; %in% names(yrbs)) {
-    yrbs &lt;- yrbs %&gt;% rename(yrbs_cocain = yrbs_cocaine)
-  }
-
-  yrbs_missing &lt;- setdiff(c(yrbs_never_is_1, yrbs_yes_is_1), names(yrbs))
-  if (length(yrbs_missing)) stop(&quot;Missing YRBS items: &quot;, paste(yrbs_missing, collapse = &quot;, &quot;))
-
-  scored &lt;- c(
-    lapply(yrbs_never_is_1, function(v) ifelse(!is.na(yrbs[[v]]) &amp; yrbs[[v]] != 1, 1, 0)),
-    lapply(yrbs_yes_is_1,   function(v) ifelse(yrbs[[v]] == 1, 1, 0))
-  )
-  yrbs$risk_high_neg &lt;- rowMeans(as.data.frame(scored), na.rm = TRUE)
-
-  d0 &lt;- d0 %&gt;% left_join(yrbs %&gt;% dplyr::select(PID, risk_high_neg), by = c(&quot;pid&quot; = &quot;PID&quot;))
-} else {
-  d0$risk_high_neg &lt;- NA_real_
-}
+<h1 id="3-risk-subtypes">3. Risk subtypes</h1>
+<pre><code>if (!use_high_stakes) d0$risk_high_neg &lt;- NA_real_
 
 # The risk subtypes, in the order they appear in the tables.
 risk_subtypes &lt;- if (use_high_stakes) {
@@ -384,7 +359,8 @@ risk_subtypes &lt;- if (use_high_stakes) {
   c(&quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;)
 }
 
-# Item counts, used to weight the total risk percentage in section 4.
+# Item counts, used to weight the total risk percentage in section 4. Each
+# subtype score is a proportion over a different number of items.
 risk_item_counts &lt;- c(risk_high_neg = 7, risk_low_neg = 7, risk_low_pos = 14)
 
 # The tables list the subtypes high-stakes first. Step 4 of the hierarchical
@@ -396,33 +372,18 @@ risk_subtypes
 </code></pre>
 <pre class="output"><code>[1] &quot;risk_high_neg&quot; &quot;risk_low_neg&quot;  &quot;risk_low_pos&quot;</code></pre>
 <h1 id="4-descriptives-table-4">4. Descriptives — Table 4</h1>
-<p>Reported on original scales, so this runs before the composites are built and
-before the outlier screen.</p>
-<p>Impulsivity needs rescoring here. The models use the BIS sum; Table 4 reports the
-mean on the original 1–4 scale (2.88 and 2.87). Four items are worded in the
-low-impulsivity direction and are reversed before averaging.</p>
+<p>Reported on original scales, so this runs before the composites are built.</p>
 <pre><code>desc &lt;- d0
 
-bar &lt;- readr::read_csv(file.path(data_dir, bar_file), show_col_types = FALSE)
-bar_reverse &lt;- c(&quot;bar_dothings&quot;, &quot;bar_attention&quot;, &quot;bar_saythings&quot;, &quot;bar_act&quot;)
-bar_max &lt;- 4
-bar &lt;- bar %&gt;% mutate(across(all_of(bar_reverse), ~ (bar_max + 1) - ., .names = &quot;rev_{col}&quot;))
-
-bar_scored &lt;- c(&quot;bar_plantasks&quot;, &quot;rev_bar_dothings&quot;, &quot;rev_bar_attention&quot;,
-                &quot;bar_selfcontrol&quot;, &quot;bar_concentrate&quot;, &quot;bar_careful&quot;,
-                &quot;rev_bar_saythings&quot;, &quot;rev_bar_act&quot;)
-
-bar &lt;- bar %&gt;% mutate(impulsivity_mean = rowMeans(across(all_of(bar_scored)), na.rm = TRUE),
-                      PID = clean_pid(PID))
-
-desc &lt;- desc %&gt;% left_join(bar %&gt;% dplyr::select(PID, impulsivity_mean), by = c(&quot;pid&quot; = &quot;PID&quot;))
-</code></pre>
-<p>Total risk variety is weighted by item count, not a plain mean of the three
-subtypes. This is why the &quot;Risk Taking, Total Variety&quot; row in Table 4 is not the
-average of the rows beneath it.</p>
-<pre><code>w &lt;- risk_item_counts[risk_subtypes]
+# Total risk variety, as a percentage. Weighted by item count rather than a plain
+# mean of the subtypes, which is why the &quot;Risk Taking, Total Variety&quot; row in
+# Table 4 is not the average of the rows beneath it.
+w &lt;- risk_item_counts[risk_subtypes]
 desc$total_risk_pct &lt;- as.numeric(as.matrix(desc[, risk_subtypes]) %*% w / sum(w) * 100)
 </code></pre>
+<p>The published Table 4 reports impulsivity as a mean on the BIS 1–4 scale (2.88
+and 2.87) while the models use the sum. This reports whatever you supplied as
+<code>impulsivity</code>, so say in your table note which one it is.</p>
 <pre><code>summarise_var &lt;- function(x) {
   data.frame(Mean = round(mean(x, na.rm = TRUE), 2),
              SD   = round(sd(x,   na.rm = TRUE), 2),
@@ -433,7 +394,7 @@ desc$total_risk_pct &lt;- as.numeric(as.matrix(desc[, risk_subtypes]) %*% w / su
 # Row order matches Table 4 top to bottom.
 desc_vars &lt;- c(&quot;mtes_time&quot;, &quot;mtes_updates&quot;, &quot;mtes_checking&quot;,
                &quot;social_use&quot;, &quot;parasocial_use&quot;,
-               &quot;impulsivity_mean&quot;, &quot;reward_sensitivity&quot;,
+               &quot;impulsivity&quot;, &quot;reward_sensitivity&quot;,
                &quot;total_risk_pct&quot;, risk_subtypes, &quot;exploration&quot;)
 
 rows &lt;- list()
@@ -499,18 +460,18 @@ knitr::kable(table4[table4$Cohort == &quot;Young Adults&quot;, ], row.names = FA
 <tr>
   <td style="text-align:left">Young Adults</td>
   <td style="text-align:left">parasocial_use</td>
-  <td style="text-align:right">10.99</td>
-  <td style="text-align:right">5.35</td>
+  <td style="text-align:right">10.87</td>
+  <td style="text-align:right">5.17</td>
   <td style="text-align:right">0.00</td>
-  <td style="text-align:right">28.00</td>
+  <td style="text-align:right">27.00</td>
 </tr>
 <tr>
   <td style="text-align:left">Young Adults</td>
-  <td style="text-align:left">impulsivity_mean</td>
-  <td style="text-align:right">2.87</td>
-  <td style="text-align:right">0.50</td>
-  <td style="text-align:right">1.12</td>
-  <td style="text-align:right">4.00</td>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:right">16.91</td>
+  <td style="text-align:right">3.83</td>
+  <td style="text-align:right">8.00</td>
+  <td style="text-align:right">29.00</td>
 </tr>
 <tr>
   <td style="text-align:left">Young Adults</td>
@@ -555,10 +516,10 @@ knitr::kable(table4[table4$Cohort == &quot;Young Adults&quot;, ], row.names = FA
 <tr>
   <td style="text-align:left">Young Adults</td>
   <td style="text-align:left">exploration</td>
-  <td style="text-align:right">46.44</td>
-  <td style="text-align:right">24.72</td>
-  <td style="text-align:right">0.00</td>
-  <td style="text-align:right">145.00</td>
+  <td style="text-align:right">45.35</td>
+  <td style="text-align:right">21.60</td>
+  <td style="text-align:right">5.77</td>
+  <td style="text-align:right">120.40</td>
 </tr>
 </tbody>
 </table>
@@ -570,7 +531,7 @@ Adults&quot; panel holds the adolescent numbers. Age confirms the split here is 
 this is just Table 4.</p>
 <h1 id="5-building-the-remaining-analysis-variables">5. Building the remaining analysis variables</h1>
 <p><strong>Exploration.</strong> Apples per tree: staying longer on a patch means exploiting, so
-higher raw values mean less exploration. Sign-flipped so the variable reads in
+higher raw values mean <em>less</em> exploration. Sign-flipped so the variable reads in
 the direction of its name. Zeros become NA — a participant who harvested nothing
 did not do the task.</p>
 <pre><code>df &lt;- d0 %&gt;%
@@ -583,27 +544,12 @@ subsample and needs the unstandardized values.</p>
 <pre><code>df &lt;- df %&gt;%
   mutate(risk_variety_raw = rowMeans(dplyr::select(., dplyr::all_of(risk_subtypes)), na.rm = TRUE),
          risk_variety     = zscore(risk_variety_raw))
+
+write_csv(df, file.path(output_dir, &quot;study2_analysis_variables.csv&quot;))
+nrow(df)
 </code></pre>
-<p><strong>Outlier screen.</strong> |z| &gt; 3, per variable, cell-wise.</p>
-<pre><code>analysis_vars &lt;- c(&quot;mtes_zscore&quot;, &quot;impulsivity&quot;, &quot;reward_sensitivity&quot;, &quot;exploration&quot;,
-                   &quot;risk_variety&quot;, risk_subtypes, &quot;social_use&quot;, &quot;parasocial_use&quot;)
-
-df_pre &lt;- df
-for (v in analysis_vars) df[[v]] &lt;- remove_outliers(df[[v]])
-
-removed_cells &lt;- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]) &amp; is.na(df[[v]]))))
-total_cells   &lt;- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]))))
-
-write_csv(data.frame(removed_cells = removed_cells, total_cells = total_cells,
-                     percent_removed = removed_cells / total_cells * 100),
-          file.path(output_dir, &quot;study2_outlier_summary.csv&quot;))
-write_csv(df, file.path(output_dir, &quot;study2_clean.csv&quot;))
-saveRDS(df,   file.path(output_dir, &quot;study2_clean.rds&quot;))
-
-sprintf(&quot;%d of %d cells removed (%.3f%%)&quot;, removed_cells, total_cells,
-        removed_cells / total_cells * 100)
-</code></pre>
-<pre class="output"><code>[1] &quot;14 of 2556 cells removed (0.548%)&quot;</code></pre>
+<pre class="output"><code>[1] 257</code></pre>
+<p>That is everything derived. No outlier screening happens here — see above.</p>
 <h1 id="6-correlations-table-5">6. Correlations — Table 5</h1>
 <p>One published table, two panels, written as two files. Stack them to rebuild
 Table 5.</p>
@@ -735,8 +681,8 @@ knitr::kable(res_adults$formatted, row.names = FALSE, caption = &quot;Panel A. Y
   <td style="text-align:left">mtes_zscore</td>
   <td style="text-align:left"></td>
   <td style="text-align:left">0.12</td>
-  <td style="text-align:left">0.12</td>
-  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">0.11</td>
+  <td style="text-align:left">0.03</td>
 </tr>
 <tr>
   <td style="text-align:left">impulsivity</td>
@@ -747,45 +693,45 @@ knitr::kable(res_adults$formatted, row.names = FALSE, caption = &quot;Panel A. Y
 </tr>
 <tr>
   <td style="text-align:left">reward_sensitivity</td>
-  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">0.11</td>
   <td style="text-align:left">0.31***</td>
   <td style="text-align:left"></td>
-  <td style="text-align:left">0.17</td>
+  <td style="text-align:left">0.16</td>
 </tr>
 <tr>
   <td style="text-align:left">exploration</td>
-  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">0.03</td>
   <td style="text-align:left">0.20*</td>
-  <td style="text-align:left">0.17</td>
+  <td style="text-align:left">0.16</td>
   <td style="text-align:left"></td>
 </tr>
 <tr>
   <td style="text-align:left">risk_variety</td>
-  <td style="text-align:left">0.35***</td>
-  <td style="text-align:left">0.25**</td>
-  <td style="text-align:left">0.41***</td>
-  <td style="text-align:left">0.14</td>
+  <td style="text-align:left">0.33***</td>
+  <td style="text-align:left">0.24*</td>
+  <td style="text-align:left">0.40***</td>
+  <td style="text-align:left">0.13</td>
 </tr>
 <tr>
   <td style="text-align:left">risk_high_neg</td>
-  <td style="text-align:left">0.14</td>
   <td style="text-align:left">0.10</td>
-  <td style="text-align:left">0.27**</td>
-  <td style="text-align:left">0.09</td>
+  <td style="text-align:left">0.10</td>
+  <td style="text-align:left">0.26**</td>
+  <td style="text-align:left">0.08</td>
 </tr>
 <tr>
   <td style="text-align:left">risk_low_neg</td>
-  <td style="text-align:left">0.32***</td>
+  <td style="text-align:left">0.33***</td>
   <td style="text-align:left">0.30**</td>
   <td style="text-align:left">0.32***</td>
   <td style="text-align:left">0.11</td>
 </tr>
 <tr>
   <td style="text-align:left">risk_low_pos</td>
-  <td style="text-align:left">0.30**</td>
-  <td style="text-align:left">0.10</td>
+  <td style="text-align:left">0.25**</td>
+  <td style="text-align:left">0.09</td>
   <td style="text-align:left">0.28**</td>
-  <td style="text-align:left">0.03</td>
+  <td style="text-align:left">0.02</td>
 </tr>
 </tbody>
 </table>
@@ -831,23 +777,23 @@ knitr::kable(intercor, row.names = FALSE)
   <td style="text-align:left">risk_low_neg</td>
   <td style="text-align:right">0.424</td>
   <td style="text-align:right">0.0000</td>
-  <td style="text-align:right">118</td>
+  <td style="text-align:right">117</td>
 </tr>
 <tr>
   <td style="text-align:left">Adolescents</td>
   <td style="text-align:left">risk_high_neg</td>
   <td style="text-align:left">risk_low_pos</td>
-  <td style="text-align:right">0.070</td>
-  <td style="text-align:right">0.4566</td>
-  <td style="text-align:right">115</td>
+  <td style="text-align:right">0.062</td>
+  <td style="text-align:right">0.5116</td>
+  <td style="text-align:right">114</td>
 </tr>
 <tr>
   <td style="text-align:left">Adolescents</td>
   <td style="text-align:left">risk_low_neg</td>
   <td style="text-align:left">risk_low_pos</td>
-  <td style="text-align:right">0.285</td>
-  <td style="text-align:right">0.0020</td>
-  <td style="text-align:right">115</td>
+  <td style="text-align:right">0.284</td>
+  <td style="text-align:right">0.0022</td>
+  <td style="text-align:right">114</td>
 </tr>
 <tr>
   <td style="text-align:left">Young Adults</td>
@@ -1050,21 +996,21 @@ med_adults &lt;- run_mediation_set(df[is_young_adult(df), ], &quot;adults&quot;)
 <tbody>
 <tr>
   <td style="text-align:left">impulsivity</td>
-  <td style="text-align:left">0.10 (0.03, 0.18), 0.000</td>
-  <td style="text-align:left">0.02 (-0.18, 0.19), 0.89</td>
-  <td style="text-align:left">86.0%, 0.28</td>
+  <td style="text-align:left">0.09 (0.02, 0.17), 0.002</td>
+  <td style="text-align:left">0.02 (-0.16, 0.20), 0.82</td>
+  <td style="text-align:left">78.9%, 0.28</td>
 </tr>
 <tr>
   <td style="text-align:left">reward_sensitivity</td>
-  <td style="text-align:left">0.15 (0.06, 0.25), 0.000</td>
-  <td style="text-align:left">-0.03 (-0.20, 0.14), 0.72</td>
-  <td style="text-align:left">126.1%, 0.19</td>
+  <td style="text-align:left">0.14 (0.05, 0.25), 0.000</td>
+  <td style="text-align:left">-0.03 (-0.19, 0.15), 0.74</td>
+  <td style="text-align:left">125.6%, 0.21</td>
 </tr>
 <tr>
   <td style="text-align:left">exploration</td>
-  <td style="text-align:left">0.04 (-0.03, 0.13), 0.296</td>
-  <td style="text-align:left">-0.03 (-0.20, 0.13), 0.69</td>
-  <td style="text-align:left">446.7%, 0.84</td>
+  <td style="text-align:left">0.03 (-0.03, 0.12), 0.338</td>
+  <td style="text-align:left">-0.01 (-0.18, 0.16), 0.92</td>
+  <td style="text-align:left">131.4%, 0.75</td>
 </tr>
 </tbody>
 </table>
@@ -1474,50 +1420,52 @@ knitr::kable(steiger_adults, row.names = FALSE, caption = &quot;Panel A. Young A
 <tr>
   <td style="text-align:left">risk_high_neg</td>
   <td style="text-align:right">0.17</td>
-  <td style="text-align:right">0.04</td>
-  <td style="text-align:right">-1.29</td>
-  <td style="text-align:right">0.198</td>
-  <td style="text-align:right">116</td>
+  <td style="text-align:right">0.02</td>
+  <td style="text-align:right">-1.38</td>
+  <td style="text-align:right">0.168</td>
+  <td style="text-align:right">115</td>
 </tr>
 <tr>
   <td style="text-align:left">risk_low_neg</td>
   <td style="text-align:right">0.31</td>
   <td style="text-align:right">0.10</td>
   <td style="text-align:right">-2.05</td>
-  <td style="text-align:right">0.041</td>
-  <td style="text-align:right">116</td>
+  <td style="text-align:right">0.040</td>
+  <td style="text-align:right">115</td>
 </tr>
 <tr>
   <td style="text-align:left">risk_low_pos</td>
   <td style="text-align:right">0.28</td>
   <td style="text-align:right">0.00</td>
-  <td style="text-align:right">-2.62</td>
-  <td style="text-align:right">0.009</td>
-  <td style="text-align:right">113</td>
+  <td style="text-align:right">-2.68</td>
+  <td style="text-align:right">0.007</td>
+  <td style="text-align:right">112</td>
 </tr>
 </tbody>
 </table>
 <h1 id="running-this-on-cohort-1">Running this on cohort 1</h1>
+<p><strong>Score it first.</strong> One row per participant, all scales scored, outliers handled,
+to the lab's standards. Then point <code>main_file</code> at it and set the right-hand side
+of the column map. Ask me if any of the scoring is unclear.</p>
 <p><strong>High-stakes risk.</strong> Cohort 1 has no YRBS substance scoring. Set
-<code>use_high_stakes &lt;- FALSE</code> in section 1 and every table adjusts — the row drops
-out of Tables 5 and 6, the term drops out of Step 4, and total risk variety
-becomes a two-subtype composite. Step 4 then tests two risk predictors rather
-than three, so the ΔR² is not comparable to the published one; report it on its
-own terms.</p>
+<code>use_high_stakes &lt;- FALSE</code> and every table adjusts — the row drops out of Tables
+5 and 6, the term drops out of Step 4, and total risk variety becomes a
+two-subtype composite weighted over 21 items instead of 28. Step 4 then tests two
+risk predictors rather than three, so the ΔR² is not comparable to the published
+one; report it on its own terms.</p>
 <p>Study 1 used the BRP rather than the YRBS for this variable, so if cohort 1
 carries a different high-stakes measure there is precedent in the paper for
-swapping it in.</p>
+mapping it in instead.</p>
 <p><strong>Participants without a phone.</strong> Jason and Lina have already worked out how
 people who report no phone at the start of the survey are handled. Confirm with
-them that it is taken care of in the cohort 1 export before running anything,
-since the MTES composite is z-scored across whoever is in the file.</p>
-<p><strong>Exclusions.</strong> In DEFT we dropped anyone missing one of the at-home cognition
-measures — Zuckerman, BIS, foraging. That happened through listwise deletion
-inside each model rather than as an explicit filtering step, so N varies a little
-between tables.</p>
-<h1 id="appendix-pnrt-ever-scores">Appendix: PNRT ever scores</h1>
-<p><code>risk_low_pos</code> and <code>risk_low_neg</code> arrive already scored. This is how, since the
-item-to-valence mapping is not recorded anywhere else.</p>
+them that it is taken care of before running anything, since the MTES composite
+is z-scored across whoever is in the file.</p>
+<p><strong>Cohort split.</strong> PID still encodes age group, so <code>is_young_adult</code> and
+<code>is_adolescent</code> carry over unchanged.</p>
+<h1 id="hold-up-the-pnrt-variety-score-in-case-you-need-it">Hold up — the PNRT variety score, in case you need it</h1>
+<p>Scoring is yours, with one exception worth putting in writing, because the PNRT
+variety score in this paper is not the standard one and the item-to-valence
+mapping is not recorded anywhere else.</p>
 <p>Every PNRT activity is asked twice: have you ever done this, and if so, how often
 in the past six months. The standard variety score uses the second question — an
 activity counts as 1 if there was any engagement in the past six months, 0
@@ -1528,10 +1476,12 @@ something they could not then report doing it zero times in the past six months.
 The frequency item cannot separate recent engagement from none, so variety was
 scored from the ever items instead.</p>
 <p>If the &quot;zero times&quot; option has since been added, the standard six-month score is
-available and is the better measure. It is not the same variable, though — report
-it as its own measure rather than as a replication of this one.</p>
+available and is the better measure — check before assuming you need the ever
+score again. It is not the same variable, though, so report it as its own measure
+rather than as a replication of this one.</p>
 <p>Note <code>pnrt_personal</code> is scored negative and <code>pnrt_secret</code> positive.</p>
-<pre><code>pnrt_neg_items &lt;- c(&quot;pnrt_phone&quot;, &quot;pnrt_cheat&quot;, &quot;pnrt_skip&quot;, &quot;pnrt_personal&quot;,
+<pre><code># Not run -- reference only.
+pnrt_neg_items &lt;- c(&quot;pnrt_phone&quot;, &quot;pnrt_cheat&quot;, &quot;pnrt_skip&quot;, &quot;pnrt_personal&quot;,
                     &quot;pnrt_snuckout&quot;, &quot;pnrt_sexy&quot;, &quot;pnrt_mph&quot;)            # 7
 
 pnrt_pos_items &lt;- c(&quot;pnrt_audition&quot;, &quot;pnrt_newclub&quot;, &quot;pnrt_truth&quot;, &quot;pnrt_food&quot;,
