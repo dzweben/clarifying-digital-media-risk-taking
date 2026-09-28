@@ -5,567 +5,1552 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DEFT Study 2 Pipeline</title>
 <style>
-  :root{
-    --bg:#ffffff; --fg:#1a1a1a; --muted:#5f6368; --rule:#e2e2e0;
-    --accent:#1f4e79; --code-bg:#f6f7f8; --code-fg:#24292f; --mark:#fbf3d5;
-    --tbl-head:#f2f3f4;
+:root{
+  --bg:#fdfdfc; --fg:#1c1c1a; --muted:#6b6b66; --faint:#8b8b85;
+  --rule:#e4e3df; --rule-strong:#c9c8c2;
+  --link:#1a4d8f; --link-hover:#0f3565;
+  --code-bg:#f5f5f3; --code-fg:#2a2a28; --out-fg:#55554f;
+  --tbl-head:#f5f5f3;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16171a; --fg:#e4e4e1; --muted:#9a9a94; --faint:#7d7d77;
+    --rule:#2b2d31; --rule-strong:#3d3f45;
+    --link:#7fa9de; --link-hover:#a3c4ec;
+    --code-bg:#1d1f23; --code-fg:#d4d4d0; --out-fg:#a5a59f;
+    --tbl-head:#1d1f23;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#14161a; --fg:#e6e6e4; --muted:#9aa0a6; --rule:#2c3038;
-      --accent:#8ab4f8; --code-bg:#1c1f25; --code-fg:#d7dae0; --mark:#3a3418;
-      --tbl-head:#1c1f25;
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#14161a; --fg:#e6e6e4; --muted:#9aa0a6; --rule:#2c3038;
-    --accent:#8ab4f8; --code-bg:#1c1f25; --code-fg:#d7dae0; --mark:#3a3418;
-    --tbl-head:#1c1f25;
-  }
+}
+:root[data-theme="dark"]{
+  --bg:#16171a; --fg:#e4e4e1; --muted:#9a9a94; --faint:#7d7d77;
+  --rule:#2b2d31; --rule-strong:#3d3f45;
+  --link:#7fa9de; --link-hover:#a3c4ec;
+  --code-bg:#1d1f23; --code-fg:#d4d4d0; --out-fg:#a5a59f;
+  --tbl-head:#1d1f23;
+}
 
-  *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%}
-  body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-  }
-  .wrap{display:grid; grid-template-columns:230px minmax(0,1fr); gap:56px;
-        max-width:1120px; margin:0 auto; padding:0 16px}
-  nav{position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
-      padding:48px 0 48px; font-size:13.5px}
-  nav a{display:block; color:var(--muted); text-decoration:none; padding:3px 0}
-  nav a:hover{color:var(--accent)}
-  nav .sub{padding-left:12px; font-size:13px}
-  nav strong{display:block; color:var(--fg); font-size:12px; letter-spacing:.08em;
-             text-transform:uppercase; margin:20px 0 6px}
-  nav strong:first-child{margin-top:0}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:16.5px/1.7 "Charter","Bitstream Charter","Sitka Text",Cambria,Georgia,serif;
+}
+.wrap{display:grid; grid-template-columns:232px minmax(0,1fr); gap:60px;
+      max-width:1160px; margin:0 auto; padding:0 20px}
 
-  main{padding:48px 0 120px; min-width:0}
-  header{border-bottom:1px solid var(--rule); padding-bottom:26px; margin-bottom:38px}
-  h1{font-size:30px; line-height:1.25; margin:0 0 10px; letter-spacing:-.01em}
-  .lede{color:var(--muted); font-size:16.5px; margin:0; max-width:64ch}
-  .cite{margin-top:18px; font-size:14px; color:var(--muted)}
-  .cite a{color:var(--accent)}
+nav{position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+    padding:52px 0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+    font-size:13px; line-height:1.45}
+nav a{display:block; color:var(--muted); text-decoration:none; padding:4px 0;
+      border-left:2px solid transparent; padding-left:10px; margin-left:-12px}
+nav a:visited{color:var(--muted)}
+nav a:hover{color:var(--fg); border-left-color:var(--rule-strong)}
+nav .lvl2{padding-left:22px; font-size:12.5px}
+nav .navtitle{display:block; color:var(--faint); font-size:11px; letter-spacing:.1em;
+              text-transform:uppercase; margin:0 0 12px; font-weight:600}
 
-  h2{font-size:21px; margin:52px 0 14px; padding-top:8px; letter-spacing:-.01em}
-  h3{font-size:16.5px; margin:34px 0 10px}
-  h4{font-size:15px; margin:22px 0 8px; color:var(--muted);
-     text-transform:uppercase; letter-spacing:.07em; font-weight:600}
-  p{margin:0 0 15px; max-width:70ch}
-  ul,ol{max-width:70ch; padding-left:22px; margin:0 0 15px}
-  li{margin-bottom:7px}
-  a{color:var(--accent)}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-       font-size:.88em; background:var(--code-bg); padding:1.5px 5px; border-radius:3px}
-  pre{background:var(--code-bg); color:var(--code-fg); padding:16px 18px;
-      border-radius:6px; overflow-x:auto; border:1px solid var(--rule);
-      font-size:13.5px; line-height:1.55; margin:0 0 18px}
-  pre code{background:none; padding:0; font-size:inherit}
-  .cm{color:var(--muted)}
+main{padding:52px 0 140px; min-width:0}
+h1{font-size:27px; line-height:1.3; margin:56px 0 16px; letter-spacing:-.005em;
+   padding-bottom:10px; border-bottom:1px solid var(--rule); font-weight:600}
+h1:first-child{margin-top:0}
+h2{font-size:20px; margin:42px 0 12px; font-weight:600; letter-spacing:-.005em}
+h3{font-size:17px; margin:32px 0 10px; font-weight:600}
+p{margin:0 0 16px; max-width:72ch}
+ul,ol{max-width:72ch; padding-left:24px; margin:0 0 16px}
+li{margin-bottom:6px}
+strong{font-weight:650}
 
-  table{border-collapse:collapse; width:100%; margin:0 0 20px; font-size:14.5px}
-  th,td{text-align:left; padding:8px 12px 8px 0; border-bottom:1px solid var(--rule);
-        vertical-align:top}
-  th{font-weight:600; border-bottom:1.5px solid var(--rule); white-space:nowrap}
-  td code{white-space:nowrap}
+a{color:var(--link); text-decoration:none; border-bottom:1px solid rgba(26,77,143,.28)}
+a:visited{color:var(--link)}
+a:hover{color:var(--link-hover); border-bottom-color:currentColor}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) a{border-bottom-color:rgba(127,169,222,.3)}
+}
 
-  .step{border-top:1px solid var(--rule); padding-top:26px; margin-top:34px}
-  .step h3{margin-top:0; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
-  .tag{font-size:11.5px; letter-spacing:.06em; text-transform:uppercase;
-       color:var(--muted); border:1px solid var(--rule); border-radius:3px;
-       padding:2px 7px; font-weight:600; white-space:nowrap}
-  .files{list-style:none; padding:0; margin:22px 0 0}
-  .files li{display:flex; gap:14px; padding:7px 0; border-bottom:1px solid var(--rule);
-            margin:0; font-size:14.5px; align-items:baseline}
-  .files a{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-           font-size:13.5px; min-width:250px}
-  .files span{color:var(--muted); font-size:13.5px}
-  mark{background:var(--mark); color:inherit; padding:0 2px}
-  footer{margin-top:70px; padding-top:22px; border-top:1px solid var(--rule);
-         color:var(--muted); font-size:13.5px}
+blockquote{margin:0 0 20px; padding:2px 0 2px 18px; border-left:2px solid var(--rule-strong);
+           color:var(--muted); font-size:15px; max-width:72ch}
+blockquote p{margin-bottom:6px}
 
-  @media (max-width:820px){
-    .wrap{grid-template-columns:1fr; gap:0}
-    nav{position:static; max-height:none; padding:28px 0 0;
-        border-bottom:1px solid var(--rule); margin-bottom:8px}
-    nav strong{margin-top:14px}
-    main{padding-top:28px}
-    h1{font-size:25px}
-    .files li{flex-direction:column; gap:2px}
-    .files a{min-width:0}
-  }
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     font-size:.85em; background:var(--code-bg); padding:2px 5px; border-radius:3px}
+pre{background:var(--code-bg); color:var(--code-fg); padding:16px 18px; border-radius:5px;
+    overflow-x:auto; border:1px solid var(--rule); margin:0 0 20px;
+    font-size:13px; line-height:1.6;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre code{background:none; padding:0; font-size:inherit}
+pre.output{background:transparent; border:none; border-left:2px solid var(--rule);
+           border-radius:0; color:var(--out-fg); padding:2px 0 2px 16px; margin:-8px 0 20px}
+
+table{border-collapse:collapse; width:100%; margin:0 0 22px; font-size:13.5px;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif}
+th,td{text-align:left; padding:7px 14px 7px 0; border-bottom:1px solid var(--rule);
+      vertical-align:top}
+th{font-weight:600; border-bottom:1px solid var(--rule-strong); white-space:nowrap}
+tbody tr:last-child td{border-bottom:1px solid var(--rule-strong)}
+td code{white-space:nowrap; font-size:.9em}
+
+.masthead{border-bottom:1px solid var(--rule-strong); padding-bottom:22px; margin-bottom:34px}
+.masthead h1{border:none; margin:0 0 6px; padding:0; font-size:30px}
+.masthead .sub{color:var(--muted); font-size:14px; margin:0;
+               font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif}
+.dl{margin:30px 0 0; padding:16px 18px; border:1px solid var(--rule); border-radius:5px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif; font-size:14px}
+.dl p{margin:0}
+footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
+       color:var(--muted); font-size:13px; max-width:72ch;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr; gap:0}
+  nav{position:static; max-height:none; padding:26px 0 18px;
+      border-bottom:1px solid var(--rule)}
+  main{padding-top:26px}
+  .masthead h1{font-size:24px}
+  h1{font-size:22px}
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-
 <nav>
-  <strong>Start</strong>
-  <a href="#setup">What you need</a>
-  <a href="#input">The data you start from</a>
-  <a href="#derived">Variables built in R</a>
-
-  <strong>Pipeline</strong>
-  <a href="#s01" class="sub">01 &middot; Data prep</a>
-  <a href="#s02" class="sub">02 &middot; Table 4</a>
-  <a href="#s03" class="sub">03 &middot; Table 5</a>
-  <a href="#s04" class="sub">04 &middot; Intercorrelations</a>
-  <a href="#s05" class="sub">05 &middot; Shapley</a>
-  <a href="#s06" class="sub">06 &middot; Table S3</a>
-  <a href="#s07" class="sub">07 &middot; Table S4</a>
-  <a href="#s08" class="sub">08 &middot; Table 6</a>
-
-  <strong>Cohort 1</strong>
-  <a href="#cohort1">What changes</a>
-  <a href="#alternatives">Defensible alternatives</a>
-
-  <strong>Reference</strong>
-  <a href="#downloads">Download scripts</a>
+  <span class="navtitle">Contents</span>
+  <a href="#top">Overview</a>
+  <a href="#the-order-things-were-run-in-and-why" class="lvl2">The order things were run in, and why</a>
+  <a href="#what-you-need" class="lvl2">What you need</a>
+  <a href="#1-configuration">1. Configuration</a>
+  <a href="#2-load-and-rename">2. Load and rename</a>
+  <a href="#3-high-stakes-negative-risk">3. High-stakes negative risk</a>
+  <a href="#4-descriptives-table-4">4. Descriptives — Table 4</a>
+  <a href="#5-building-the-remaining-analysis-variables">5. Building the remaining analysis variables</a>
+  <a href="#6-correlations-table-5">6. Correlations — Table 5</a>
+  <a href="#7-risk-subtype-intercorrelations">7. Risk subtype intercorrelations</a>
+  <a href="#8-shapley-value-regression">8. Shapley value regression</a>
+  <a href="#9-indirect-effects-table-s3">9. Indirect effects — Table S3</a>
+  <a href="#10-hierarchical-regression-table-s4">10. Hierarchical regression — Table S4</a>
+  <a href="#11-social-versus-parasocial-table-6">11. Social versus parasocial — Table 6</a>
+  <a href="#running-this-on-cohort-1">Running this on cohort 1</a>
+  <a href="#appendix-pnrt-ever-scores">Appendix: PNRT ever scores</a>
 </nav>
+<main id="top">
 
-<main>
+<div class="masthead">
+  <h1>DEFT Study 2 analysis pipeline</h1>
+  <p class="sub">Zweben et al. (2026), <em>Technology in Society</em> 88, 103491</p>
+</div>
 
-<header>
-  <h1>DEFT Study 2: from scored data to the published tables</h1>
-  <p class="lede">Every Study 2 result in the paper, in the order it was produced,
-  with the reasoning behind each modelling choice and what has to change to run
-  the same pipeline on cohort 1.</p>
-  <p class="cite">Zweben, D., Zaneski, L., Chiu, M., Green, H., Brooks-Justice, J.,
-  Dachs, A., Vince, M. A., Olino, T., Marshall, P., Steinberg, L., &amp; Chein, J. M.
-  (2026). Clarifying the association between digital media engagement and risk
-  taking. <em>Technology in Society, 88</em>, 103491.
-  <a href="https://doi.org/10.1016/j.techsoc.2026.103491">doi:10.1016/j.techsoc.2026.103491</a></p>
-</header>
+<div class="dl">
+<p>This page is the knitted output of
+<a href="deft_study2_pipeline.Rmd">deft_study2_pipeline.Rmd</a> &mdash; download that
+file and run it on your own data.</p>
+</div>
 
-<p>Study 1 and Study 2 use different measures and different samples. This covers
-Study 2 only &mdash; the adolescent and young adult cohorts, PNRT and YRBS risk
-scores, and the apple-picking foraging task.</p>
-
-<h2 id="setup">What you need</h2>
-
-<p>R 4.3 or later, and these packages:</p>
-
-<pre><code>install.packages(c("dplyr", "readr", "tidyr", "psych", "Hmisc",
-                   "cocor", "mediation", "lm.beta", "ShapleyValue"))</code></pre>
-
-<p>Put the scripts in a folder next to the data, so that
-<code>data/</code>, <code>outputs/</code> and <code>scripts-analyses/</code> are siblings.
-Every script resolves its own location and builds paths from there, so it does not
-matter what your working directory is or whether you run with
-<code>Rscript</code>, <code>source()</code>, or the RStudio Run button.</p>
-
+<p>Every Study 2 result in Zweben et al. (2026), in the order the paper runs them,
+with the reasoning behind each choice and what changes on cohort 1.</p>
+<blockquote>
+<p>Zweben, D., Zaneski, L., Chiu, M., Green, H., Brooks-Justice, J., Dachs, A.,
+Vince, M. A., Olino, T., Marshall, P., Steinberg, L., &amp; Chein, J. M. (2026).
+Clarifying the association between digital media engagement and risk taking.
+<em>Technology in Society, 88</em>, 103491.
+<a href="https://doi.org/10.1016/j.techsoc.2026.103491">doi:10.1016/j.techsoc.2026.103491</a></p>
+</blockquote>
+<p>Study 1 and Study 2 use different measures and different samples. This is Study 2
+only: the adolescent and young adult cohorts, PNRT and YRBS risk scores, and the
+apple-picking foraging task.</p>
+<p>Everything you need to change for a new dataset is in section 1. Nothing after it
+refers to a column name from any particular export.</p>
+<h2 id="the-order-things-were-run-in-and-why">The order things were run in, and why</h2>
+<p>The paper builds one argument, and each analysis exists because of what the one
+before it left open. Running them out of order still produces numbers, but the
+numbers stop answering the question they were meant to answer.</p>
+<table>
+<thead>
+<tr>
+  <th>Paper</th>
+  <th>Analysis</th>
+  <th>The question it answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>3.2.1</td>
+  <td>Descriptives, Table 4</td>
+  <td>What do these measures look like in each cohort</td>
+</tr>
+<tr>
+  <td>3.2.2</td>
+  <td>Correlations, Table 5</td>
+  <td>Is SSMU related to risk taking and to the traits at all</td>
+</tr>
+<tr>
+  <td>3.2.3</td>
+  <td>Shapley, in text</td>
+  <td>Of the things that are related, which carries the most weight</td>
+</tr>
+<tr>
+  <td>3.2.4</td>
+  <td>Indirect effects, Table S3</td>
+  <td>Do the traits reach SSMU through risk taking</td>
+</tr>
+<tr>
+  <td>3.2.5</td>
+  <td>Subtypes, then hierarchical regression, Table S4</td>
+  <td>Which kind of risk, and does any of it survive controlling for traits</td>
+</tr>
+<tr>
+  <td>3.2.6</td>
+  <td>Social vs parasocial, Table 6</td>
+  <td>Is this about screen time, or about the kind of platform</td>
+</tr>
+</tbody>
+</table>
+<p>Read down that column and the argument narrows: does risk matter, how much,
+through what path, which kind, and on which platforms. Two orderings inside it
+are doing real work.</p>
+<p><strong>Shapley comes before the regression, not instead of it.</strong> The predictors are
+correlated, so betas depend on entry order. Shapley is order-free, which makes it
+the honest first look at relative contribution. The hierarchical regression then
+asks the stricter question — whether risk adds anything <em>after</em> traits have had
+first claim on the shared variance.</p>
+<p><strong>The subtype intercorrelations come before the subtype analyses.</strong> They
+establish that the three kinds of risk are related but not interchangeable
+(high- and low-stakes negative risk correlate at .55 and .42; low-stakes positive
+risk does not track high-stakes negative risk at all). Without that, splitting
+risk into three predictors in Step 4 would be unmotivated.</p>
+<p><strong>What changes on cohort 1.</strong> The order does not. What changes is that section 3
+has no YRBS substance scoring, so high-stakes negative risk drops out of Table 5,
+Table 6, Step 4 of Table S4, and the total risk variety composite. Set
+<code>use_high_stakes &lt;- FALSE</code> in section 1 and everything downstream adjusts. Step 4
+then tests two risk predictors rather than three, which is not comparable to the
+published ΔR², so report it on its own terms.</p>
+<h2 id="what-you-need">What you need</h2>
+<pre><code>install.packages(c(&quot;dplyr&quot;, &quot;readr&quot;, &quot;tidyr&quot;, &quot;psych&quot;, &quot;Hmisc&quot;,
+                   &quot;cocor&quot;, &quot;mediation&quot;, &quot;lm.beta&quot;, &quot;ShapleyValue&quot;))
+</code></pre>
+<pre><code>suppressPackageStartupMessages({
+  library(dplyr)
+  library(readr)
+  library(tidyr)
+  library(psych)
+  library(Hmisc)
+  library(cocor)          # Steiger&#x27;s z for dependent, overlapping correlations
+  library(mediation)      # bootstrapped indirect effects
+  library(lm.beta)        # standardized betas
+  library(ShapleyValue)   # Shapley value regression
+})
+</code></pre>
+<p>Put this file next to the data:</p>
 <pre><code>study-2/
   data/
     study2_analysis_data.csv
-    raw/
-      yrbs.csv
-      bar.csv
-      pnrt.csv
-  outputs/                 <span class="cm"># created automatically</span>
-  scripts-analyses/
-    00_setup.R  01_data_prep.R  ...  08_steiger_table6.R</code></pre>
+    raw/yrbs.csv
+    raw/bar.csv
+  outputs/                 # created automatically
+  deft_study2_pipeline.Rmd
+</code></pre>
+<p>A few minutes end to end. Section 9 runs six mediations at 5000 bootstrap
+resamples each and takes most of it.</p>
+<h1 id="1-configuration">1. Configuration</h1>
+<p>Paths, relative to this file.</p>
+<pre><code>data_dir   &lt;- &quot;data&quot;
+output_dir &lt;- &quot;outputs&quot;
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
-<p>Run <code>01</code> through <code>08</code> in order. Each one re-runs data prep by
-itself if <code>outputs/study2_clean.rds</code> is not there yet, so they also work
-standalone and in any order after the first. Budget a few minutes; script
-<code>06</code> runs six mediations at 5000 bootstrap resamples each and takes nearly all
-of the time.</p>
+main_file &lt;- &quot;study2_analysis_data.csv&quot;
+yrbs_file &lt;- file.path(&quot;raw&quot;, &quot;yrbs.csv&quot;)
+bar_file  &lt;- file.path(&quot;raw&quot;, &quot;bar.csv&quot;)
+</code></pre>
+<p>The column map. Left side is the name this pipeline uses; right side is the
+column in your export. <strong>Change the right side only.</strong> Everything below section 2
+uses the names on the left, so this is the only place a column name from a
+particular dataset appears.</p>
+<pre><code>cols &lt;- c(
+  pid                = &quot;PID&quot;,                                 # also encodes cohort
+  gender             = &quot;sex&quot;,                                 # 1 female, 2 male
+  mtes_time          = &quot;MTES_SocialMediaUse_TimeOnApp.sum&quot;,   # sum across platforms
+  mtes_checking      = &quot;MTES_PhoneChecking.mean&quot;,             # item mean
+  mtes_updates       = &quot;MTES_PublicUpdates.mean&quot;,             # item mean
+  social_use         = &quot;SocialUsage&quot;,                         # reciprocal platforms
+  parasocial_use     = &quot;ParasocialUsage&quot;,                     # one-sided platforms
+  impulsivity        = &quot;barrets.sum&quot;,                         # BIS, 8 items, sum
+  reward_sensitivity = &quot;zuckerman.mean&quot;,                      # 6-item subset, mean
+  exploration        = &quot;foraging&quot;,                            # apples per tree, raw
+  risk_low_pos       = &quot;positiverisk_ever_mean&quot;,              # PNRT positive, 14 items
+  risk_low_neg       = &quot;negativerisk_ever_mean&quot;               # PNRT negative, 7 items
+)
+</code></pre>
+<p>Cohort split. PID encodes age group — 2xxx adolescents, 3xxx and above young
+adults — and that carries over to cohort 1.</p>
+<pre><code>is_young_adult &lt;- function(d) d$pid &gt; 3000
+is_adolescent  &lt;- function(d) d$pid &lt; 3000
+</code></pre>
+<p>High-stakes risk. Seven YRBS substance behaviours collapsed to ever/never;
+response coding is not uniform, so they are listed in two groups.</p>
+<p>Set <code>use_high_stakes &lt;- FALSE</code> if your data has no YRBS substance scoring. Do not
+just leave the column missing — total risk variety is built with <code>na.rm = TRUE</code>
+and would silently average whatever is left.</p>
+<pre><code>use_high_stakes &lt;- TRUE
 
-<h2 id="input">The data you start from</h2>
+yrbs_never_is_1 &lt;- c(&quot;yrbs_alcfirst&quot;, &quot;yrbs_mjuse&quot;, &quot;yrbs_rxuse&quot;,
+                     &quot;yrbs_inhalants&quot;, &quot;yrbs_cocain&quot;)   # 1 = never, anything else = yes
+yrbs_yes_is_1   &lt;- c(&quot;yrbs_cig_try&quot;, &quot;yrbs_vape_use&quot;)   # 1 = yes
+</code></pre>
+<p>Helpers.</p>
+<pre><code>zscore &lt;- function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
 
-<p>The pipeline expects one row per participant in
-<code>study2_analysis_data.csv</code>, with the measures already scored. Only two
-things get scored inside R: the YRBS high-stakes composite and the BIS mean used
-for descriptives. Everything else arrives ready.</p>
+# Blank the CELL, keep the ROW. A participant with an implausible foraging score
+# still has valid impulsivity and risk data, so dropping the whole row would
+# throw away good observations.
+remove_outliers &lt;- function(x, cutoff = 3) {
+  z &lt;- zscore(x)
+  ifelse(abs(z) &gt; cutoff, NA, x)
+}
 
-<p>These are the columns that matter. Anything else in the file is carried along
-and ignored.</p>
+# Three star levels. Study 1 additionally marked p &lt; .10; Study 2 does not.
+format_r &lt;- function(r, p) {
+  stars &lt;- if (is.na(p)) &quot;&quot; else if (p &lt; .001) &quot;***&quot; else if (p &lt; .01) &quot;**&quot; else if (p &lt; .05) &quot;*&quot; else &quot;&quot;
+  sprintf(&quot;%.2f%s&quot;, r, stars)
+}
 
+format_p_num &lt;- function(p) if (p &lt; .001) &quot;&lt; .001&quot; else sprintf(&quot;%.3f&quot;, p)
+
+# REDCap exports PIDs as &quot;2002.1&quot; (pid.visit). Harmless if yours are plain.
+clean_pid &lt;- function(x) as.numeric(gsub(&quot;\\..*$&quot;, &quot;&quot;, as.character(x)))
+</code></pre>
+<h1 id="2-load-and-rename">2. Load and rename</h1>
+<p>Values are untouched. The <code>setdiff</code> check fails loudly if a mapped column is not
+in the file, which is better than discovering it eight sections later.</p>
+<pre><code>raw &lt;- readr::read_csv(file.path(data_dir, main_file), show_col_types = FALSE)
+
+missing_cols &lt;- setdiff(unname(cols), names(raw))
+if (length(missing_cols)) {
+  stop(&quot;Columns in the map not found in &quot;, main_file, &quot;: &quot;, paste(missing_cols, collapse = &quot;, &quot;))
+}
+
+d0 &lt;- raw %&gt;%
+  dplyr::select(dplyr::all_of(unname(cols))) %&gt;%
+  setNames(names(cols)) %&gt;%
+  mutate(pid = clean_pid(pid), across(-pid, as.numeric))
+
+nrow(d0)
+</code></pre>
+<pre class="output"><code>[1] 257</code></pre>
+<p><strong>The SSMU composite is built here, before anything is joined on.</strong> The three MTES
+subscales are on different scales — time is a sum across platforms, the other two
+are item means — so each is z-scored before averaging. Without that, time would
+dominate.</p>
+<p>It has to happen at this point rather than later. z-scoring is relative to
+whoever is in the frame, so if a join has already changed the row count the mean
+and SD shift with it. Section 3 joins the YRBS file, and duplicate PIDs there
+will expand the data.</p>
+<pre><code>d0 &lt;- d0 %&gt;%
+  mutate(mtes_zscore = rowMeans(cbind(zscore(mtes_time), zscore(mtes_checking),
+                                      zscore(mtes_updates)), na.rm = TRUE))
+</code></pre>
+<p>The composite is relative to your sample, so it is not on the same absolute scale
+across datasets. Compare patterns of association, not means.</p>
+<h1 id="3-high-stakes-negative-risk">3. High-stakes negative risk</h1>
+<p>Scored from items rather than read in pre-scored. Each behaviour collapses to
+ever/never and the score is their mean, so it reads as the proportion of
+high-stakes behaviours ever engaged in — the same variety logic as the two PNRT
+subtypes, which is what makes the three comparable.</p>
+<pre><code>if (use_high_stakes) {
+  yrbs &lt;- readr::read_csv(file.path(data_dir, yrbs_file), show_col_types = FALSE)
+  if (&quot;pid_assignment&quot; %in% names(yrbs)) yrbs &lt;- yrbs %&gt;% rename(PID = pid_assignment)
+  yrbs &lt;- yrbs %&gt;% mutate(PID = clean_pid(PID))
+
+  # Spelling of the cocaine column varies between exports.
+  if (!&quot;yrbs_cocain&quot; %in% names(yrbs) &amp;&amp; &quot;yrbs_cocaine&quot; %in% names(yrbs)) {
+    yrbs &lt;- yrbs %&gt;% rename(yrbs_cocain = yrbs_cocaine)
+  }
+
+  yrbs_missing &lt;- setdiff(c(yrbs_never_is_1, yrbs_yes_is_1), names(yrbs))
+  if (length(yrbs_missing)) stop(&quot;Missing YRBS items: &quot;, paste(yrbs_missing, collapse = &quot;, &quot;))
+
+  scored &lt;- c(
+    lapply(yrbs_never_is_1, function(v) ifelse(!is.na(yrbs[[v]]) &amp; yrbs[[v]] != 1, 1, 0)),
+    lapply(yrbs_yes_is_1,   function(v) ifelse(yrbs[[v]] == 1, 1, 0))
+  )
+  yrbs$risk_high_neg &lt;- rowMeans(as.data.frame(scored), na.rm = TRUE)
+
+  d0 &lt;- d0 %&gt;% left_join(yrbs %&gt;% dplyr::select(PID, risk_high_neg), by = c(&quot;pid&quot; = &quot;PID&quot;))
+} else {
+  d0$risk_high_neg &lt;- NA_real_
+}
+
+# The risk subtypes, in the order they appear in the tables.
+risk_subtypes &lt;- if (use_high_stakes) {
+  c(&quot;risk_high_neg&quot;, &quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;)
+} else {
+  c(&quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;)
+}
+
+# Item counts, used to weight the total risk percentage in section 4.
+risk_item_counts &lt;- c(risk_high_neg = 7, risk_low_neg = 7, risk_low_pos = 14)
+
+# The tables list the subtypes high-stakes first. Step 4 of the hierarchical
+# regression entered them the other way round; order does not change the fit,
+# only the row order of the printed table.
+risk_entry_order &lt;- rev(risk_subtypes)
+
+risk_subtypes
+</code></pre>
+<pre class="output"><code>[1] &quot;risk_high_neg&quot; &quot;risk_low_neg&quot;  &quot;risk_low_pos&quot;</code></pre>
+<h1 id="4-descriptives-table-4">4. Descriptives — Table 4</h1>
+<p>Reported on original scales, so this runs before the composites are built and
+before the outlier screen.</p>
+<p>Impulsivity needs rescoring here. The models use the BIS sum; Table 4 reports the
+mean on the original 1–4 scale (2.88 and 2.87). Four items are worded in the
+low-impulsivity direction and are reversed before averaging.</p>
+<pre><code>desc &lt;- d0
+
+bar &lt;- readr::read_csv(file.path(data_dir, bar_file), show_col_types = FALSE)
+bar_reverse &lt;- c(&quot;bar_dothings&quot;, &quot;bar_attention&quot;, &quot;bar_saythings&quot;, &quot;bar_act&quot;)
+bar_max &lt;- 4
+bar &lt;- bar %&gt;% mutate(across(all_of(bar_reverse), ~ (bar_max + 1) - ., .names = &quot;rev_{col}&quot;))
+
+bar_scored &lt;- c(&quot;bar_plantasks&quot;, &quot;rev_bar_dothings&quot;, &quot;rev_bar_attention&quot;,
+                &quot;bar_selfcontrol&quot;, &quot;bar_concentrate&quot;, &quot;bar_careful&quot;,
+                &quot;rev_bar_saythings&quot;, &quot;rev_bar_act&quot;)
+
+bar &lt;- bar %&gt;% mutate(impulsivity_mean = rowMeans(across(all_of(bar_scored)), na.rm = TRUE),
+                      PID = clean_pid(PID))
+
+desc &lt;- desc %&gt;% left_join(bar %&gt;% dplyr::select(PID, impulsivity_mean), by = c(&quot;pid&quot; = &quot;PID&quot;))
+</code></pre>
+<p>Total risk variety is weighted by item count, not a plain mean of the three
+subtypes. This is why the &quot;Risk Taking, Total Variety&quot; row in Table 4 is not the
+average of the rows beneath it.</p>
+<pre><code>w &lt;- risk_item_counts[risk_subtypes]
+desc$total_risk_pct &lt;- as.numeric(as.matrix(desc[, risk_subtypes]) %*% w / sum(w) * 100)
+</code></pre>
+<pre><code>summarise_var &lt;- function(x) {
+  data.frame(Mean = round(mean(x, na.rm = TRUE), 2),
+             SD   = round(sd(x,   na.rm = TRUE), 2),
+             Min  = round(min(x,  na.rm = TRUE), 2),
+             Max  = round(max(x,  na.rm = TRUE), 2))
+}
+
+# Row order matches Table 4 top to bottom.
+desc_vars &lt;- c(&quot;mtes_time&quot;, &quot;mtes_updates&quot;, &quot;mtes_checking&quot;,
+               &quot;social_use&quot;, &quot;parasocial_use&quot;,
+               &quot;impulsivity_mean&quot;, &quot;reward_sensitivity&quot;,
+               &quot;total_risk_pct&quot;, risk_subtypes, &quot;exploration&quot;)
+
+rows &lt;- list()
+for (cohort_name in c(&quot;Young Adults&quot;, &quot;Adolescents&quot;)) {
+  dfc &lt;- if (cohort_name == &quot;Young Adults&quot;) desc[is_young_adult(desc), ] else desc[is_adolescent(desc), ]
+  for (v in desc_vars) {
+    values &lt;- dfc[[v]]
+    # The subtype scores are proportions; Table 4 prints them as percentages.
+    if (v %in% risk_subtypes) values &lt;- values * 100
+    rows[[length(rows) + 1]] &lt;- data.frame(Cohort = cohort_name, Variable = v,
+                                           summarise_var(values), stringsAsFactors = FALSE)
+  }
+}
+
+table4 &lt;- bind_rows(rows)
+write_csv(table4, file.path(output_dir, &quot;study2_table4_descriptives.csv&quot;))
+knitr::kable(table4[table4$Cohort == &quot;Young Adults&quot;, ], row.names = FALSE)
+</code></pre>
 <table>
-<thead><tr><th>Column</th><th>What it is</th><th>Scale</th></tr></thead>
+<thead>
+<tr>
+  <th style="text-align:left">Cohort</th>
+  <th style="text-align:left">Variable</th>
+  <th style="text-align:right">Mean</th>
+  <th style="text-align:right">SD</th>
+  <th style="text-align:right">Min</th>
+  <th style="text-align:right">Max</th>
+</tr>
+</thead>
 <tbody>
-<tr><td><code>PID</code></td><td>Participant ID; also encodes cohort</td><td>2xxx teens, 3xxx+ adults</td></tr>
-<tr><td><code>sex</code></td><td>Covariate in every regression</td><td>1 female, 2 male</td></tr>
-<tr><td><code>MTES_SocialMediaUse_TimeOnApp.sum</code></td><td>Time on platform, summed across apps</td><td>sum</td></tr>
-<tr><td><code>MTES_PhoneChecking.mean</code></td><td>Checking subscale</td><td>item mean</td></tr>
-<tr><td><code>MTES_PublicUpdates.mean</code></td><td>Public updating subscale</td><td>item mean</td></tr>
-<tr><td><code>SocialUsage</code></td><td>Reciprocal platforms: Instagram, Snapchat, Facebook</td><td>sum</td></tr>
-<tr><td><code>ParasocialUsage</code></td><td>One-sided platforms: YouTube, TikTok, Pinterest, Twitter</td><td>sum</td></tr>
-<tr><td><code>barrets.sum</code></td><td>Impulsivity, BIS, 8 scored items</td><td>sum</td></tr>
-<tr><td><code>zuckerman.mean</code></td><td>Reward sensitivity, 6-item sensation seeking subset</td><td>item mean</td></tr>
-<tr><td><code>positiverisk_ever_mean</code></td><td>PNRT positive, 14 items</td><td>proportion 0&ndash;1</td></tr>
-<tr><td><code>negativerisk_ever_mean</code></td><td>PNRT negative, 7 items</td><td>proportion 0&ndash;1</td></tr>
-<tr><td><code>foraging</code></td><td>Apples per tree from the patch-foraging task</td><td>count</td></tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">mtes_time</td>
+  <td style="text-align:right">22.06</td>
+  <td style="text-align:right">7.50</td>
+  <td style="text-align:right">7.00</td>
+  <td style="text-align:right">46.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">mtes_updates</td>
+  <td style="text-align:right">3.20</td>
+  <td style="text-align:right">1.26</td>
+  <td style="text-align:right">1.00</td>
+  <td style="text-align:right">6.50</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">mtes_checking</td>
+  <td style="text-align:right">4.93</td>
+  <td style="text-align:right">0.95</td>
+  <td style="text-align:right">2.67</td>
+  <td style="text-align:right">7.33</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">social_use</td>
+  <td style="text-align:right">8.25</td>
+  <td style="text-align:right">3.60</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">17.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">parasocial_use</td>
+  <td style="text-align:right">10.99</td>
+  <td style="text-align:right">5.35</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">28.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">impulsivity_mean</td>
+  <td style="text-align:right">2.87</td>
+  <td style="text-align:right">0.50</td>
+  <td style="text-align:right">1.12</td>
+  <td style="text-align:right">4.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:right">0.63</td>
+  <td style="text-align:right">0.27</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">1.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">total_risk_pct</td>
+  <td style="text-align:right">66.86</td>
+  <td style="text-align:right">13.08</td>
+  <td style="text-align:right">35.71</td>
+  <td style="text-align:right">96.43</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:right">36.94</td>
+  <td style="text-align:right">22.47</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">100.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:right">58.37</td>
+  <td style="text-align:right">23.96</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">100.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">86.07</td>
+  <td style="text-align:right">12.63</td>
+  <td style="text-align:right">50.00</td>
+  <td style="text-align:right">100.00</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:right">46.44</td>
+  <td style="text-align:right">24.72</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">145.00</td>
+</tr>
 </tbody>
 </table>
+<p>Exploration appears here on its raw apples-per-tree scale, before the sign flip
+in section 5. Table 4 describes the task; the models use the flipped version.</p>
+<p>The two panel headings in the published Table 4 are transposed — its &quot;Young
+Adults&quot; panel holds the adolescent numbers. Age confirms the split here is right
+(PID &gt; 3000 is 18–21, PID &lt; 3000 is 11–17), and Table 5 is labelled correctly, so
+this is just Table 4.</p>
+<h1 id="5-building-the-remaining-analysis-variables">5. Building the remaining analysis variables</h1>
+<p><strong>Exploration.</strong> Apples per tree: staying longer on a patch means exploiting, so
+higher raw values mean less exploration. Sign-flipped so the variable reads in
+the direction of its name. Zeros become NA — a participant who harvested nothing
+did not do the task.</p>
+<pre><code>df &lt;- d0 %&gt;%
+  mutate(exploration = ifelse(exploration == 0, NA, exploration),
+         exploration = -1 * exploration)
+</code></pre>
+<p><strong>Total risk variety.</strong> Mean of the subtype proportions, then z-scored. The raw
+version is kept because section 9 standardizes within its own complete-case
+subsample and needs the unstandardized values.</p>
+<pre><code>df &lt;- df %&gt;%
+  mutate(risk_variety_raw = rowMeans(dplyr::select(., dplyr::all_of(risk_subtypes)), na.rm = TRUE),
+         risk_variety     = zscore(risk_variety_raw))
+</code></pre>
+<p><strong>Outlier screen.</strong> |z| &gt; 3, per variable, cell-wise.</p>
+<pre><code>analysis_vars &lt;- c(&quot;mtes_zscore&quot;, &quot;impulsivity&quot;, &quot;reward_sensitivity&quot;, &quot;exploration&quot;,
+                   &quot;risk_variety&quot;, risk_subtypes, &quot;social_use&quot;, &quot;parasocial_use&quot;)
 
-<p>Anyone missing one of the cognition measures collected in the at-home surveys
-&mdash; Zuckerman, BIS, foraging &mdash; is not in the analysis sample. That exclusion
-is not a separate filtering step in the code; it happens through listwise deletion
-inside each model, which is why N drifts slightly between tables.</p>
+df_pre &lt;- df
+for (v in analysis_vars) df[[v]] &lt;- remove_outliers(df[[v]])
 
-<h3>PNRT scoring is not the standard scoring</h3>
+removed_cells &lt;- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]) &amp; is.na(df[[v]]))))
+total_cells   &lt;- sum(sapply(analysis_vars, function(v) sum(!is.na(df_pre[[v]]))))
 
-<p>Every PNRT activity is asked twice: have you <em>ever</em> done this, and how
-often in the past six months. The frequency items are the usual way the instrument
-is scored. <mark>We used the ever items.</mark> Each participant's score is the
-proportion of activities in that set they have ever engaged in &mdash; variety, not
-rate. That is deliberate: the paper's claim is about the <em>breadth</em> of risk
-behaviour, and scoring it this way keeps the PNRT subtypes on the same footing as
-the YRBS composite, which is also a proportion of behaviours ever engaged in.</p>
+write_csv(data.frame(removed_cells = removed_cells, total_cells = total_cells,
+                     percent_removed = removed_cells / total_cells * 100),
+          file.path(output_dir, &quot;study2_outlier_summary.csv&quot;))
+write_csv(df, file.path(output_dir, &quot;study2_clean.csv&quot;))
+saveRDS(df,   file.path(output_dir, &quot;study2_clean.rds&quot;))
 
-<p>The item-to-valence mapping is not recorded anywhere else, so it is written out
-here. Note that <code>pnrt_personal</code> is scored negative and
-<code>pnrt_secret</code> is scored positive, which is not what the variable names
-suggest.</p>
+sprintf(&quot;%d of %d cells removed (%.3f%%)&quot;, removed_cells, total_cells,
+        removed_cells / total_cells * 100)
+</code></pre>
+<pre class="output"><code>[1] &quot;14 of 2556 cells removed (0.548%)&quot;</code></pre>
+<h1 id="6-correlations-table-5">6. Correlations — Table 5</h1>
+<p>One published table, two panels, written as two files. Stack them to rebuild
+Table 5.</p>
+<p>Correlations are pairwise complete, not listwise. Each cell uses everyone who has
+both variables, so N differs slightly across cells — which is why the table
+carries significance stars rather than a single N.</p>
+<pre><code>main_vars &lt;- c(&quot;mtes_zscore&quot;, &quot;impulsivity&quot;, &quot;reward_sensitivity&quot;, &quot;exploration&quot;)
+row_vars  &lt;- c(main_vars, &quot;risk_variety&quot;, risk_subtypes)
 
+get_r_p &lt;- function(d, x, y) {
+  d2 &lt;- d[, c(x, y)]
+  d2 &lt;- d2[complete.cases(d2), ]
+  if (nrow(d2) &lt; 3) return(list(r = NA_real_, p = NA_real_))
+  test &lt;- cor.test(d2[[x]], d2[[y]], method = &quot;pearson&quot;)
+  list(r = unname(test$estimate), p = test$p.value)
+}
+
+build_corr_table &lt;- function(d) {
+  r_mat &lt;- matrix(NA_real_, nrow = length(row_vars), ncol = length(main_vars),
+                  dimnames = list(row_vars, main_vars))
+  p_mat &lt;- r_mat
+  for (rv in row_vars) for (cv in main_vars) {
+    if (rv == cv) next                      # diagonal stays blank, as in the paper
+    res &lt;- get_r_p(d, rv, cv)
+    r_mat[rv, cv] &lt;- res$r
+    p_mat[rv, cv] &lt;- res$p
+  }
+  formatted &lt;- matrix(&quot;&quot;, nrow = nrow(r_mat), ncol = ncol(r_mat), dimnames = dimnames(r_mat))
+  for (i in seq_len(nrow(r_mat))) for (j in seq_len(ncol(r_mat))) {
+    if (!is.na(r_mat[i, j])) formatted[i, j] &lt;- format_r(r_mat[i, j], p_mat[i, j])
+  }
+  list(formatted = as.data.frame(cbind(Variable = rownames(formatted), formatted)),
+       numeric   = as.data.frame(cbind(Variable = rownames(r_mat), r_mat)))
+}
+
+res_adults &lt;- build_corr_table(df[is_young_adult(df), ])
+write_csv(res_adults$formatted, file.path(output_dir, &quot;study2_table5_correlations_adults.csv&quot;))
+write_csv(res_adults$numeric,   file.path(output_dir, &quot;study2_table5_correlations_adults_numeric.csv&quot;))
+
+res_teens &lt;- build_corr_table(df[is_adolescent(df), ])
+write_csv(res_teens$formatted, file.path(output_dir, &quot;study2_table5_correlations_teens.csv&quot;))
+write_csv(res_teens$numeric,   file.path(output_dir, &quot;study2_table5_correlations_teens_numeric.csv&quot;))
+
+knitr::kable(res_adults$formatted, row.names = FALSE, caption = &quot;Panel A. Young Adults&quot;)
+</code></pre>
+<p>Table: Panel A. Young Adults</p>
 <table>
-<thead><tr><th>Set</th><th>Items</th></tr></thead>
+<thead>
+<tr>
+  <th style="text-align:left">Variable</th>
+  <th style="text-align:left">mtes_zscore</th>
+  <th style="text-align:left">impulsivity</th>
+  <th style="text-align:left">reward_sensitivity</th>
+  <th style="text-align:left">exploration</th>
+</tr>
+</thead>
 <tbody>
-<tr><td><strong>Negative</strong><br>7 items</td>
-<td><code>pnrt_phone</code> <code>pnrt_cheat</code> <code>pnrt_skip</code>
-<code>pnrt_personal</code> <code>pnrt_snuckout</code> <code>pnrt_sexy</code>
-<code>pnrt_mph</code></td></tr>
-<tr><td><strong>Positive</strong><br>14 items</td>
-<td><code>pnrt_audition</code> <code>pnrt_newclub</code> <code>pnrt_truth</code>
-<code>pnrt_food</code> <code>pnrt_leader</code> <code>pnrt_like</code>
-<code>pnrt_challenge</code> <code>pnrt_newlook</code> <code>pnrt_newsocial</code>
-<code>pnrt_secret</code> <code>pnrt_beliefs</code> <code>pnrt_friend</code>
-<code>pnrt_sport</code> <code>pnrt_newpeople</code></td></tr>
+<tr>
+  <td style="text-align:left">mtes_zscore</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.29***</td>
+  <td style="text-align:left">0.08</td>
+  <td style="text-align:left">0.06</td>
+</tr>
+<tr>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.29***</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.30***</td>
+  <td style="text-align:left">-0.08</td>
+</tr>
+<tr>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">0.08</td>
+  <td style="text-align:left">0.30***</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.05</td>
+</tr>
+<tr>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.06</td>
+  <td style="text-align:left">-0.08</td>
+  <td style="text-align:left">0.05</td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_variety</td>
+  <td style="text-align:left">0.26**</td>
+  <td style="text-align:left">0.34***</td>
+  <td style="text-align:left">0.34***</td>
+  <td style="text-align:left">0.10</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">0.16</td>
+  <td style="text-align:left">0.33***</td>
+  <td style="text-align:left">0.27**</td>
+  <td style="text-align:left">0.11</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:left">0.27**</td>
+  <td style="text-align:left">0.32***</td>
+  <td style="text-align:left">0.28***</td>
+  <td style="text-align:left">0.10</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:left">0.14</td>
+  <td style="text-align:left">0.00</td>
+  <td style="text-align:left">0.21*</td>
+  <td style="text-align:left">-0.04</td>
+</tr>
 </tbody>
 </table>
-
-<p>This mapping reproduces both scored columns exactly across all 254 complete
-cases in the published data. The commented block at the bottom of
-<a href="scripts/01_data_prep.R"><code>01_data_prep.R</code></a> will rebuild them
-from <code>pnrt.csv</code> if cohort 1 needs scoring from items.</p>
-
-<p>One discrepancy worth knowing: the published methods section describes eight
-low-stakes negative activities. The data use seven, and the denominators in the
-scored columns confirm seven.</p>
-
-<h2 id="derived">Variables built in R</h2>
-
-<p>Five variables are constructed in <code>01_data_prep.R</code>. These are the ones
-where a scoring decision was made, and they are the ones to check first if cohort 1
-numbers look wrong.</p>
-
+<p>Table: Panel B. Adolescents</p>
 <table>
-<thead><tr><th>Variable</th><th>How it is built</th></tr></thead>
+<thead>
+<tr>
+  <th style="text-align:left">Variable</th>
+  <th style="text-align:left">mtes_zscore</th>
+  <th style="text-align:left">impulsivity</th>
+  <th style="text-align:left">reward_sensitivity</th>
+  <th style="text-align:left">exploration</th>
+</tr>
+</thead>
 <tbody>
-<tr><td><code>mtes_zscore</code></td>
-<td>The outcome for the whole paper. Three MTES subscales, each z-scored, then averaged.
-Z-scoring first is necessary because TimeOnApp is a sum and the other two are item means &mdash;
-averaging them raw would let TimeOnApp dominate.</td></tr>
-<tr><td><code>risk_high_neg</code></td>
-<td>Seven YRBS substance behaviours collapsed to ever/never, then averaged. Response coding
-differs across items, which is why the recodes are not uniform.</td></tr>
-<tr><td><code>exploration</code></td>
-<td>Foraging, sign-flipped. Higher apples-per-tree means staying on a patch, which is
-<em>exploiting</em>; the flip makes the variable read in the direction of its name. Zeros
-become <code>NA</code> &mdash; a participant who harvested nothing did not do the task.</td></tr>
-<tr><td><code>risk_variety_raw</code></td>
-<td>Mean of the three subtype proportions, unstandardized. Carried through because the
-mediation script standardizes within its own subsample.</td></tr>
-<tr><td><code>risk_variety</code></td>
-<td>The above, z-scored across the full Study 2 sample.</td></tr>
+<tr>
+  <td style="text-align:left">mtes_zscore</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">0.02</td>
+</tr>
+<tr>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.31***</td>
+  <td style="text-align:left">0.20*</td>
+</tr>
+<tr>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">0.31***</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">0.17</td>
+</tr>
+<tr>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">0.20*</td>
+  <td style="text-align:left">0.17</td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_variety</td>
+  <td style="text-align:left">0.35***</td>
+  <td style="text-align:left">0.25**</td>
+  <td style="text-align:left">0.41***</td>
+  <td style="text-align:left">0.14</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">0.14</td>
+  <td style="text-align:left">0.10</td>
+  <td style="text-align:left">0.27**</td>
+  <td style="text-align:left">0.09</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:left">0.32***</td>
+  <td style="text-align:left">0.30**</td>
+  <td style="text-align:left">0.32***</td>
+  <td style="text-align:left">0.11</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:left">0.30**</td>
+  <td style="text-align:left">0.10</td>
+  <td style="text-align:left">0.28**</td>
+  <td style="text-align:left">0.03</td>
+</tr>
 </tbody>
 </table>
+<h1 id="7-risk-subtype-intercorrelations">7. Risk subtype intercorrelations</h1>
+<p>Not a table — these open section 3.2.5. They carry the argument that the subtypes
+are related but not interchangeable, which is what justifies analysing them
+separately in the next section rather than collapsing them.</p>
+<pre><code>run_corr &lt;- function(d, x, y, cohort) {
+  d2 &lt;- d[, c(x, y)]
+  d2 &lt;- d2[complete.cases(d2), ]
+  if (nrow(d2) &lt; 3) return(data.frame(cohort = cohort, var1 = x, var2 = y, r = NA, p = NA, n = nrow(d2)))
+  test &lt;- cor.test(d2[[x]], d2[[y]], method = &quot;pearson&quot;)
+  data.frame(cohort = cohort, var1 = x, var2 = y,
+             r = round(unname(test$estimate), 3),
+             p = round(test$p.value, 4), n = nrow(d2))
+}
 
-<p>Outliers are screened at <code>|z| &gt; 3</code>, per variable, and the offending
-<em>cell</em> is set to <code>NA</code> rather than the row being dropped. A participant
-with an implausible foraging value still has usable impulsivity and risk data. In the
-published sample this removes 14 of 2556 cells, about half a percent.</p>
+subtype_pairs &lt;- combn(risk_subtypes, 2, simplify = FALSE)
 
-<p>Because <code>mtes_zscore</code> and <code>risk_variety</code> are standardized within
-whoever is in the file, they are not on the same absolute scale as the published versions.
-Compare patterns of association across cohorts, not means.</p>
+rows &lt;- list()
+for (pr in subtype_pairs) rows[[length(rows) + 1]] &lt;- run_corr(df[is_adolescent(df), ],  pr[1], pr[2], &quot;Adolescents&quot;)
+for (pr in subtype_pairs) rows[[length(rows) + 1]] &lt;- run_corr(df[is_young_adult(df), ], pr[1], pr[2], &quot;Young Adults&quot;)
 
-<h2>The pipeline</h2>
-
-<p>Eight scripts. Numbers in the table below are the published table each one produces.</p>
-
+intercor &lt;- bind_rows(rows)
+write_csv(intercor, file.path(output_dir, &quot;study2_risk_subtype_intercorrelations.csv&quot;))
+knitr::kable(intercor, row.names = FALSE)
+</code></pre>
 <table>
-<thead><tr><th>Script</th><th>Produces</th></tr></thead>
+<thead>
+<tr>
+  <th style="text-align:left">cohort</th>
+  <th style="text-align:left">var1</th>
+  <th style="text-align:left">var2</th>
+  <th style="text-align:right">r</th>
+  <th style="text-align:right">p</th>
+  <th style="text-align:right">n</th>
+</tr>
+</thead>
 <tbody>
-<tr><td><code>01_data_prep.R</code></td><td>Cleaned dataset used by everything else</td></tr>
-<tr><td><code>02_descriptives_table4.R</code></td><td>Table 4</td></tr>
-<tr><td><code>03_correlations_table5.R</code></td><td>Table 5, both panels</td></tr>
-<tr><td><code>04_risk_subtype_intercorrelations.R</code></td><td>Reported in text, section 3.2.5</td></tr>
-<tr><td><code>05_shapley.R</code></td><td>Reported in text, section 3.2.3</td></tr>
-<tr><td><code>06_mediation_tableS3.R</code></td><td>Table S3</td></tr>
-<tr><td><code>07_hierarchical_regression_tableS4.R</code></td><td>Table S4</td></tr>
-<tr><td><code>08_steiger_table6.R</code></td><td>Table 6, both panels</td></tr>
+<tr>
+  <td style="text-align:left">Adolescents</td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:right">0.424</td>
+  <td style="text-align:right">0.0000</td>
+  <td style="text-align:right">118</td>
+</tr>
+<tr>
+  <td style="text-align:left">Adolescents</td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.070</td>
+  <td style="text-align:right">0.4566</td>
+  <td style="text-align:right">115</td>
+</tr>
+<tr>
+  <td style="text-align:left">Adolescents</td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.285</td>
+  <td style="text-align:right">0.0020</td>
+  <td style="text-align:right">115</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:right">0.553</td>
+  <td style="text-align:right">0.0000</td>
+  <td style="text-align:right">140</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.111</td>
+  <td style="text-align:right">0.1919</td>
+  <td style="text-align:right">140</td>
+</tr>
+<tr>
+  <td style="text-align:left">Young Adults</td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.246</td>
+  <td style="text-align:right">0.0034</td>
+  <td style="text-align:right">140</td>
+</tr>
 </tbody>
 </table>
-
-<div class="step" id="s01">
-<h3>01 &middot; Data preparation <span class="tag">builds everything</span></h3>
-<p>The only script that constructs variables. Reads the scored dataset, adds the five
-derived variables described above, renames instrument names to construct names, applies
-the outlier screen, and writes <code>study2_clean.rds</code>.</p>
-<p>The rename step is cosmetic but load-bearing for readability: every downstream script
-refers to <code>impulsivity</code> and <code>reward_sensitivity</code> rather than
-<code>barrets.sum</code> and <code>zuckerman.mean</code>.</p>
-<pre><code>df &lt;- df_raw %&gt;%
-  rename(
-    pid                = PID,
-    gender             = sex,
-    impulsivity        = barrets.sum,
-    reward_sensitivity = zuckerman.mean,
-    exploration        = foraging,
-    social_use         = SocialUsage,
-    parasocial_use     = ParasocialUsage,
-    risk_low_pos       = positiverisk_ever_mean,
-    risk_low_neg       = negativerisk_ever_mean,
-    risk_high_neg      = yrbs_var
-  ) %&gt;%
-  mutate(
-    risk_variety_raw = rowMeans(dplyr::select(., risk_low_neg, risk_low_pos, risk_high_neg), na.rm = TRUE),
-    risk_variety     = zscore(risk_variety_raw)
-  )</code></pre>
-<p>The <code>na.rm = TRUE</code> on <code>risk_variety_raw</code> is the thing to watch
-on cohort 1. If <code>risk_high_neg</code> is missing, this does not error &mdash; it
-quietly averages the two subtypes that remain and produces a composite that is not the
-published one.</p>
-</div>
-
-<div class="step" id="s02">
-<h3>02 &middot; Descriptives <span class="tag">Table 4</span></h3>
-<p>This is the one script that does not read the cleaned data. Table 4 reports measures
-on their original scales, so it re-derives from the raw files and skips the outlier screen.</p>
-<p>Two things get rescored here. Impulsivity is reported as a mean on the 1&ndash;4 scale
-(2.88 and 2.87) rather than the sum the models use, so the BIS is rebuilt from items with
-four reverse-worded items flipped. And total risk variety is weighted by item count rather
-than being a plain mean of the three subtypes:</p>
-<pre><code>total_risk_pct = (negativerisk_ever_mean * 7 +
-                  positiverisk_ever_mean * 14 +
-                  yrbs_var * 7) / (7 + 14 + 7) * 100</code></pre>
-<p>That weighting is why the "Risk Taking, Total Variety" row in Table 4 is not the average
-of the three rows underneath it. Foraging appears here on its raw apples-per-tree scale,
-before the sign flip.</p>
-</div>
-
-<div class="step" id="s03">
-<h3>03 &middot; Correlations <span class="tag">Table 5</span></h3>
-<p>One published table with two panels, written as two files &mdash; stack them to rebuild it.
-Columns are the outcome and the three cognitive predictors; rows add total risk variety and
-its three subtypes.</p>
-<p>Correlations are pairwise complete, not listwise. Each cell uses everyone who has both
-variables, so N differs slightly from cell to cell, which is why the table carries
-significance stars rather than a single N.</p>
-<p>Study 2 uses three star levels. Study 1 additionally marked <em>p</em> &lt; .10; Study 2
-does not, and <code>format_r()</code> in <code>00_setup.R</code> reflects that. Changing it
-will silently desynchronize Table 5 from the paper.</p>
-</div>
-
-<div class="step" id="s04">
-<h3>04 &middot; Risk subtype intercorrelations <span class="tag">in text</span></h3>
-<p>Not a table. These three correlations are quoted at the top of section 3.2.5, and they
-carry the argument that the subtypes are related but not interchangeable: high- and
-low-stakes negative risk track each other closely (<em>r</em> = .55 in young adults,
-.42 in adolescents), while low-stakes <em>positive</em> risk does not track high-stakes
-negative risk at all (.11 and .07).</p>
-<p>That dissociation is what justifies analysing the subtypes separately for the rest of
-the paper instead of collapsing them.</p>
-</div>
-
-<div class="step" id="s05">
-<h3>05 &middot; Shapley value regression <span class="tag">in text</span></h3>
+<p>High- and low-stakes negative risk track each other closely. Low-stakes positive
+risk does not track high-stakes negative risk at all.</p>
+<h1 id="8-shapley-value-regression">8. Shapley value regression</h1>
 <p>The predictors are correlated, so ordinary betas depend on entry order and each
-predictor's apparent importance shifts with whatever else is in the model. Shapley averages
-each predictor's contribution to <em>R</em>&sup2; across every possible ordering. The result
-sums to the model <em>R</em>&sup2; and does not depend on how you ordered the steps.</p>
-<p>Read the output as share of <em>explained</em> variance, not as effect size. The adolescent
-model explains 20.8% of variance in MTES; risk variety accounts for roughly half of that
+predictor's apparent importance shifts with whatever else is in the model.
+Shapley averages each predictor's contribution to R² across every possible
+ordering, so the result sums to the model R² and does not depend on how the steps
+were ordered.</p>
+<p>Read it as share of <strong>explained</strong> variance, not effect size. The adolescent model
+explains 20.8% of variance in MTES; risk variety accounts for about half of that
 20.8%, not half of MTES.</p>
-<p>This uses <code>risk_variety</code>, the composite, rather than the three subtypes.
-Feeding in three heavily overlapping risk terms would split one construct's contribution
-across them and make every risk share look small. The <code>na.omit()</code> here is
-necessarily listwise: Shapley refits over every subset of predictors and needs one constant
-sample to compare them against.</p>
-</div>
+<p>This uses the composite rather than the three subtypes. Three heavily overlapping
+risk terms would split one construct's contribution across them and make every
+risk share look small. The <code>na.omit</code> is listwise by necessity — Shapley refits
+over every subset of predictors and needs one constant sample to compare them.</p>
+<pre><code>run_shapley &lt;- function(data, cohort_label) {
+  shap_df &lt;- data %&gt;%
+    dplyr::select(mtes_zscore, risk_variety, reward_sensitivity,
+                  impulsivity, exploration, gender) %&gt;%
+    na.omit()
 
-<div class="step" id="s06">
-<h3>06 &middot; Indirect effects <span class="tag">Table S3</span></h3>
-<p>Cognitive trait &rarr; risk variety &rarr; SSMU, run separately for each trait and each
-cohort. Six mediations, 5000 bootstrap resamples each.</p>
-<p>Direction is worth stating plainly: risk taking is the <em>mediator</em>, social media
-engagement is the <em>outcome</em>. The data are cross-sectional, so this tests statistical
-accounting, not causal sequence. The paper words these as "accounted for" throughout and
-never as "led to" &mdash; keep that.</p>
-<p>Predictors are standardized <em>after</em> subsetting to cohort and <em>after</em>
-<code>na.omit()</code>, so every variable is z-scored within the exact sample the models are
-fit on:</p>
-<pre><code>med_df &lt;- data %&gt;%
-  dplyr::select(mtes_zscore, risk_variety_raw, reward_sensitivity, impulsivity, exploration) %&gt;%
-  mutate(
-    risk_variety_z       = zscore(risk_variety_raw),
-    reward_sensitivity_z = zscore(reward_sensitivity),
-    impulsivity_z        = zscore(impulsivity),
-    exploration_z        = zscore(exploration)
-  ) %&gt;%
-  na.omit()</code></pre>
-<p>Standardizing earlier &mdash; in data prep, across both cohorts &mdash; would put
-adolescents and young adults on a shared scale and change the coefficients. This is the
-reason <code>risk_variety_raw</code> exists.</p>
-<p><code>set.seed(2025)</code> is at the top. Without it the confidence intervals move on
-every run and the published values will not reproduce.</p>
-<p>The proportion mediated exceeds 100% for reward sensitivity in both cohorts (112.4% and
-110.6%). That happens when the direct and indirect paths have opposite signs. It is not an
-error, the paper reports it alongside a nonsignificant <em>p</em> for the proportion, and it
-should not be "fixed".</p>
-</div>
+  shap_values &lt;- shapleyvalue(y = shap_df$mtes_zscore,
+                              x = shap_df %&gt;% dplyr::select(-mtes_zscore) %&gt;% as.data.frame())
 
-<div class="step" id="s07">
-<h3>07 &middot; Hierarchical regression <span class="tag">Table S4</span></h3>
-<p>The question: once you account for who someone is dispositionally, does what they
-<em>do</em> still explain anything about their social media engagement?</p>
+  # Row 1 = raw Shapley value; row 2 = proportion of model R2, as a percent.
+  shap_out &lt;- as.data.frame(shap_values)
+  shap_out &lt;- rbind(Shapley_Value = shap_out[1, ],
+                    Percent_R2    = round(as.numeric(shap_out[2, ]) * 100, 2))
+
+  write_csv(as.data.frame(shap_out),
+            file.path(output_dir, paste0(&quot;study2_shapley_&quot;, cohort_label, &quot;.csv&quot;)))
+  shap_out
+}
+
+shap_teens  &lt;- run_shapley(df[is_adolescent(df), ],  &quot;adolescents&quot;)
+shap_adults &lt;- run_shapley(df[is_young_adult(df), ], &quot;adults&quot;)
+knitr::kable(shap_adults, caption = &quot;Young adults&quot;)
+</code></pre>
+<p>Table: Young adults</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left"></th>
+  <th style="text-align:right">risk_variety</th>
+  <th style="text-align:right">reward_sensitivity</th>
+  <th style="text-align:right">impulsivity</th>
+  <th style="text-align:right">exploration</th>
+  <th style="text-align:right">gender</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">Shapley_Value</td>
+  <td style="text-align:right">0.0461</td>
+  <td style="text-align:right">0.0032</td>
+  <td style="text-align:right">0.0679</td>
+  <td style="text-align:right">0.005</td>
+  <td style="text-align:right">0.0126</td>
+</tr>
+<tr>
+  <td style="text-align:left">Percent_R2</td>
+  <td style="text-align:right">34.2100</td>
+  <td style="text-align:right">2.3400</td>
+  <td style="text-align:right">50.3500</td>
+  <td style="text-align:right">3.720</td>
+  <td style="text-align:right">9.3800</td>
+</tr>
+</tbody>
+</table>
+<h1 id="9-indirect-effects-table-s3">9. Indirect effects — Table S3</h1>
+<p>Cognitive trait → risk variety → SSMU, separately for each trait and each cohort.
+Six mediations, 5000 bootstrap resamples each. Slowest section here.</p>
+<p>Risk taking is the mediator and social media engagement is the outcome. The data
+are cross-sectional, so this is statistical accounting, not causal sequence. The
+paper says &quot;accounted for&quot; throughout and never &quot;led to&quot; — keep that.</p>
+<p>Predictors are standardized <em>after</em> subsetting to cohort and <em>after</em> <code>na.omit</code>,
+so everything is z-scored within the exact sample the models are fit on.
+Standardizing back in section 5 across both cohorts would put adolescents and
+young adults on a shared scale and change the coefficients. That is why
+<code>risk_variety_raw</code> is carried forward.</p>
+<pre><code>set.seed(2025)   # without this the bootstrap CIs move on every run
+
+run_mediation_set &lt;- function(data, cohort_label) {
+  med_df &lt;- data %&gt;%
+    dplyr::select(mtes_zscore, risk_variety_raw, reward_sensitivity, impulsivity, exploration) %&gt;%
+    mutate(risk_variety_z       = zscore(risk_variety_raw),
+           reward_sensitivity_z = zscore(reward_sensitivity),
+           impulsivity_z        = zscore(impulsivity),
+           exploration_z        = zscore(exploration)) %&gt;%
+    na.omit()
+
+  # Two models per mediation: predictor -&gt; mediator, and predictor + mediator -&gt;
+  # outcome. Written longhand rather than looped -- mediate() re-evaluates the
+  # model calls internally, and building the formulas programmatically breaks it.
+
+  med_model_imp &lt;- lm(risk_variety_z ~ impulsivity_z, data = med_df)
+  out_model_imp &lt;- lm(mtes_zscore ~ impulsivity_z + risk_variety_z, data = med_df)
+  med_imp &lt;- mediate(med_model_imp, out_model_imp, treat = &quot;impulsivity_z&quot;,
+                     mediator = &quot;risk_variety_z&quot;, boot = TRUE, sims = 5000)
+
+  med_model_rs &lt;- lm(risk_variety_z ~ reward_sensitivity_z, data = med_df)
+  out_model_rs &lt;- lm(mtes_zscore ~ reward_sensitivity_z + risk_variety_z, data = med_df)
+  med_rs &lt;- mediate(med_model_rs, out_model_rs, treat = &quot;reward_sensitivity_z&quot;,
+                    mediator = &quot;risk_variety_z&quot;, boot = TRUE, sims = 5000)
+
+  med_model_exp &lt;- lm(risk_variety_z ~ exploration_z, data = med_df)
+  out_model_exp &lt;- lm(mtes_zscore ~ exploration_z + risk_variety_z, data = med_df)
+  med_exp &lt;- mediate(med_model_exp, out_model_exp, treat = &quot;exploration_z&quot;,
+                     mediator = &quot;risk_variety_z&quot;, boot = TRUE, sims = 5000)
+
+  # d0 = indirect (ACME), z0 = direct (ADE), n0 = proportion mediated.
+  extract_results &lt;- function(m, predictor_name) {
+    data.frame(
+      Predictor = predictor_name,
+      Indirect  = sprintf(&quot;%.2f (%.2f, %.2f), %.3f&quot;, m$d0, m$d0.ci[1], m$d0.ci[2], m$d0.p),
+      Direct    = sprintf(&quot;%.2f (%.2f, %.2f), %.2f&quot;, m$z0, m$z0.ci[1], m$z0.ci[2], m$z0.p),
+      Prop      = sprintf(&quot;%.1f%%, %.2f&quot;, m$n0 * 100, m$n0.p),
+      stringsAsFactors = FALSE)
+  }
+
+  out &lt;- bind_rows(extract_results(med_imp, &quot;impulsivity&quot;),
+                   extract_results(med_rs,  &quot;reward_sensitivity&quot;),
+                   extract_results(med_exp, &quot;exploration&quot;))
+
+  write_csv(out, file.path(output_dir, paste0(&quot;study2_mediation_&quot;, cohort_label, &quot;.csv&quot;)))
+  out
+}
+
+med_teens  &lt;- run_mediation_set(df[is_adolescent(df), ],  &quot;adolescents&quot;)
+med_adults &lt;- run_mediation_set(df[is_young_adult(df), ], &quot;adults&quot;)
+</code></pre>
+<p>Table: Young adults</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left">Predictor</th>
+  <th style="text-align:left">Indirect</th>
+  <th style="text-align:left">Direct</th>
+  <th style="text-align:left">Prop</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.04 (0.00, 0.09), 0.042</td>
+  <td style="text-align:left">0.15 (0.04, 0.25), 0.01</td>
+  <td style="text-align:left">20.7%, 0.04</td>
+</tr>
+<tr>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">0.06 (0.01, 0.11), 0.008</td>
+  <td style="text-align:left">-0.01 (-0.11, 0.10), 0.93</td>
+  <td style="text-align:left">112.1%, 0.32</td>
+</tr>
+<tr>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.02 (-0.01, 0.05), 0.211</td>
+  <td style="text-align:left">0.04 (-0.08, 0.15), 0.54</td>
+  <td style="text-align:left">32.2%, 0.47</td>
+</tr>
+</tbody>
+</table>
+<p>Table: Adolescents</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left">Predictor</th>
+  <th style="text-align:left">Indirect</th>
+  <th style="text-align:left">Direct</th>
+  <th style="text-align:left">Prop</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.10 (0.03, 0.18), 0.000</td>
+  <td style="text-align:left">0.02 (-0.18, 0.19), 0.89</td>
+  <td style="text-align:left">86.0%, 0.28</td>
+</tr>
+<tr>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">0.15 (0.06, 0.25), 0.000</td>
+  <td style="text-align:left">-0.03 (-0.20, 0.14), 0.72</td>
+  <td style="text-align:left">126.1%, 0.19</td>
+</tr>
+<tr>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.04 (-0.03, 0.13), 0.296</td>
+  <td style="text-align:left">-0.03 (-0.20, 0.13), 0.69</td>
+  <td style="text-align:left">446.7%, 0.84</td>
+</tr>
+</tbody>
+</table>
+<p>Proportion mediated exceeds 100% for reward sensitivity in both cohorts. That
+happens when the direct and indirect paths have opposite signs. It is not an
+error and should not be &quot;fixed&quot; — the paper reports it alongside a nonsignificant
+p for the proportion.</p>
+<h1 id="10-hierarchical-regression-table-s4">10. Hierarchical regression — Table S4</h1>
+<p>Once you account for who someone is dispositionally, does what they do still
+explain anything about their social media engagement?</p>
 <ol>
 <li>sex + impulsivity</li>
 <li>+ reward sensitivity</li>
 <li>+ exploration</li>
-<li>+ the three risk subtypes</li>
+<li>+ the risk subtypes</li>
 </ol>
-<p>Sex is in from Step 1 as a covariate, not a predictor of interest. Entering the cognitive
-traits before risk is the conservative ordering &mdash; it gives the dispositional account
-first claim on shared variance, so whatever risk picks up in Step 4 is over and above traits.
-The &Delta;<em>R</em>&sup2; at Step 4 is the test.</p>
+<p>Sex is a covariate from Step 1, not a predictor of interest. Entering the
+cognitive traits before risk is the conservative ordering — it gives the
+dispositional account first claim on the shared variance, so whatever risk picks
+up in Step 4 is over and above traits. The ΔR² at Step 4 is the test.</p>
 <p>Listwise deletion happens once, up front, so all four steps are fit on the same
-participants. Without that, the step-to-step comparisons would be across different samples
-and <code>anova()</code> would be meaningless:</p>
-<pre><code>d &lt;- data %&gt;% dplyr::select(dplyr::all_of(model_vars)) %&gt;% na.omit()</code></pre>
-<p>Betas in the table are standardized via <code>lm.beta</code>; the SE and <em>t</em> columns
-come from the unstandardized fit.</p>
-<p>The two cohorts diverge here, and it is the substantive finding: for young adults, risk
-does not add over traits, because impulsivity absorbs it. For adolescents, it does.</p>
-</div>
+participants. Otherwise the ΔR² comparisons would be across different samples and
+<code>anova()</code> would be meaningless.</p>
+<pre><code>build_hier_table &lt;- function(data, out_name) {
+  model_vars &lt;- c(&quot;mtes_zscore&quot;, &quot;gender&quot;, &quot;impulsivity&quot;, &quot;reward_sensitivity&quot;,
+                  &quot;exploration&quot;, risk_entry_order)
 
-<div class="step" id="s08">
-<h3>08 &middot; Social versus parasocial <span class="tag">Table 6</span></h3>
-<p>If the link between social media and risk were just screen time, it would not matter what
-kind of platform the time was spent on. It does. Risk tracks reciprocal platforms and not
-one-sided ones, in both cohorts.</p>
-<p>Steiger's <em>z</em> is the right test because the two correlations being compared share a
-variable &mdash; the risk subtype &mdash; and come from the same people. Comparing two
-<em>r</em> values directly would ignore that dependency and overstate the difference. The
-test needs a third correlation, social use with parasocial use, to know how dependent they are:</p>
-<pre><code>test &lt;- cocor.dep.groups.overlap(
-  r.jk = r_social,             <span class="cm"># risk x social</span>
-  r.jh = r_parasocial,         <span class="cm"># risk x parasocial</span>
-  r.kh = r_social_parasocial,  <span class="cm"># social x parasocial</span>
-  n    = n
-)</code></pre>
-<p>The sign of <em>z</em> is flipped in the output so that a negative value means social
-&gt; parasocial, matching the direction printed in Table 6. <code>cocor</code> orders the
-comparison the other way.</p>
-</div>
+  d &lt;- data %&gt;% dplyr::select(dplyr::all_of(model_vars)) %&gt;% na.omit()
 
-<h2 id="cohort1">Running this on cohort 1</h2>
+  base &lt;- &quot;mtes_zscore ~ gender + impulsivity&quot;
+  f &lt;- c(base,
+         paste(base, &quot;+ reward_sensitivity&quot;),
+         paste(base, &quot;+ reward_sensitivity + exploration&quot;),
+         paste(base, &quot;+ reward_sensitivity + exploration +&quot;,
+               paste(risk_entry_order, collapse = &quot; + &quot;)))
 
-<h3>High-stakes risk will not be there</h3>
+  models     &lt;- lapply(f, function(x) lm(as.formula(x), data = d))
+  models_std &lt;- lapply(models, lm.beta)          # betas in the table are standardized
+  anova_res  &lt;- do.call(anova, models)           # step-to-step delta R2 tests
 
-<p>Cohort 1 has no YRBS substance scoring, so <code>risk_high_neg</code> does not exist.
-That variable is load-bearing in four places: a row in Table 5, a row in Table 6, a term in
-Step 4 of Table S4, and one of three components of <code>risk_variety</code>.</p>
+  format_beta &lt;- function(beta, p) {
+    stars &lt;- if (p &lt; .001) &quot;***&quot; else if (p &lt; .01) &quot;**&quot; else if (p &lt; .05) &quot;*&quot; else if (p &lt; .10) &quot;+&quot; else &quot;&quot;
+    sprintf(&quot;%.2f%s&quot;, beta, stars)
+  }
 
-<p>The failure mode is silent, not loud. <code>risk_variety_raw</code> uses
-<code>na.rm = TRUE</code>, so a missing high-stakes score does not error &mdash; it produces
-a two-component composite that looks fine and is not comparable to the published one. Decide
-explicitly and state it: either redefine total risk variety as a two-subtype composite and
-report it as such, or substitute whatever high-stakes measure cohort 1 does carry. Study 1
-used the BRP rather than the YRBS for exactly this variable, so a BRP-based version is
-precedented within the paper.</p>
+  rows &lt;- list()
+  for (i in seq_along(models)) {
+    summ &lt;- summary(models[[i]]); summ_std &lt;- summary(models_std[[i]])
 
-<p>What to edit, concretely: drop <code>risk_high_neg</code> from <code>row_vars</code> in
-<code>03</code>, from <code>predictors</code> in <code>08</code>, from
-<code>model_vars</code> and <code>m4</code> in <code>07</code>, and remove both the term and
-its weight from the <code>total_risk_pct</code> denominator in <code>02</code>. Leaving the 7
-in that denominator understates the percentage.</p>
+    rows[[length(rows) + 1]] &lt;- data.frame(Step = paste0(&quot;Step &quot;, i), Predictor = &quot;&quot;,
+                                           Beta = &quot;&quot;, SE = &quot;&quot;, t = &quot;&quot;, p = &quot;&quot;, stringsAsFactors = FALSE)
 
-<p>A two-predictor Step 4 is not comparable to the published &Delta;<em>R</em>&sup2;. Report
-it as its own result, not as a replication.</p>
+    for (j in 2:nrow(summ$coefficients)) {       # start at 2 to skip the intercept
+      rows[[length(rows) + 1]] &lt;- data.frame(
+        Step = &quot;&quot;,
+        Predictor = rownames(summ$coefficients)[j],
+        Beta = format_beta(summ_std$coefficients[j, &quot;Standardized&quot;], summ$coefficients[j, &quot;Pr(&gt;|t|)&quot;]),
+        # SE and t come from the unstandardized fit; only beta is standardized.
+        SE = sprintf(&quot;%.2f&quot;, summ$coefficients[j, &quot;Std. Error&quot;]),
+        t  = sprintf(&quot;%.2f&quot;, summ$coefficients[j, &quot;t value&quot;]),
+        p  = format_p_num(summ$coefficients[j, &quot;Pr(&gt;|t|)&quot;]),
+        stringsAsFactors = FALSE)
+    }
 
-<h3>Participants without a phone</h3>
+    r2 &lt;- summ$r.squared
+    fstat &lt;- summ$fstatistic
+    fval &lt;- fstat[1]; df1 &lt;- fstat[2]; df2 &lt;- fstat[3]
+    pval &lt;- pf(fval, df1, df2, lower.tail = FALSE)
 
-<p>The MTES composite leans on <code>TimeOnApp.sum</code>, which is a sum across platforms.
-Someone with no phone who selects nothing sums to zero, and after z-scoring lands at the
-bottom of the distribution &mdash; which encodes "no phone" as "lightest user."</p>
+    delta_r2 &lt;- &quot;&quot;
+    if (i &gt; 1) {
+      delta &lt;- r2 - summary(models[[i - 1]])$r.squared
+      delta_r2 &lt;- paste0(&quot;, Delta R2 = &quot;, sprintf(&quot;%.3f&quot;, delta),
+                         &quot;, p = &quot;, format_p_num(anova_res$`Pr(&gt;F)`[i]))
+    }
 
-<p>Whether that is a true floor or should be <code>NA</code> is a decision, not a bug. Check
-it with Jason before running anything; Lina and Jason have almost certainly set a rule for
-cohort 1 already. Whatever the rule is, it needs to be applied before
-<code>mtes_zscore</code> is computed, because the z-scoring is relative to whoever is in the
-file.</p>
+    rows[[length(rows) + 1]] &lt;- data.frame(
+      Step = &quot;&quot;,
+      Predictor = paste0(&quot;R2 = &quot;, sprintf(&quot;%.3f&quot;, r2),
+                         &quot;, F(&quot;, df1, &quot;, &quot;, df2, &quot;) = &quot;, sprintf(&quot;%.2f&quot;, fval),
+                         &quot;, p = &quot;, format_p_num(pval), delta_r2),
+      Beta = &quot;&quot;, SE = &quot;&quot;, t = &quot;&quot;, p = &quot;&quot;, stringsAsFactors = FALSE)
+  }
 
-<h3>Exclusions</h3>
+  out &lt;- bind_rows(rows)
+  write_csv(out, file.path(output_dir, out_name))
+  out
+}
 
-<p>Anyone missing one of the at-home cognition measures &mdash; Zuckerman, BIS, foraging
-&mdash; is out. In this pipeline that happens through listwise deletion inside each model
-rather than as an explicit step, which means N varies a little between tables. If cohort 1
-has more missingness than the published sample, it is worth adding an explicit filter and
-reporting one N, rather than letting it vary silently.</p>
+hier_teens  &lt;- build_hier_table(df[is_adolescent(df), ],  &quot;study2_table14_hierarchical_regression_adolescents.csv&quot;)
+hier_adults &lt;- build_hier_table(df[is_young_adult(df), ], &quot;study2_table13_hierarchical_regression_adults.csv&quot;)
+knitr::kable(hier_adults, row.names = FALSE, caption = &quot;Young adults&quot;)
+</code></pre>
+<p>Table: Young adults</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left">Step</th>
+  <th style="text-align:left">Predictor</th>
+  <th style="text-align:left">Beta</th>
+  <th style="text-align:left">SE</th>
+  <th style="text-align:left">t</th>
+  <th style="text-align:left">p</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">Step 1</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">gender</td>
+  <td style="text-align:left">-0.13</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">-1.51</td>
+  <td style="text-align:left">0.132</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.31***</td>
+  <td style="text-align:left">0.01</td>
+  <td style="text-align:left">3.61</td>
+  <td style="text-align:left">&lt; .001</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">R2 = 0.095, F(2, 131) = 6.90, p = 0.001</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left">Step 2</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">gender</td>
+  <td style="text-align:left">-0.13</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">-1.51</td>
+  <td style="text-align:left">0.134</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.31***</td>
+  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">3.47</td>
+  <td style="text-align:left">&lt; .001</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">-0.01</td>
+  <td style="text-align:left">0.21</td>
+  <td style="text-align:left">-0.09</td>
+  <td style="text-align:left">0.927</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">R2 = 0.095, F(3, 130) = 4.57, p = 0.004, Delta R2 = 0.000, p = 0.926</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left">Step 3</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">gender</td>
+  <td style="text-align:left">-0.11</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">-1.34</td>
+  <td style="text-align:left">0.184</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.31***</td>
+  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">3.53</td>
+  <td style="text-align:left">&lt; .001</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">-0.01</td>
+  <td style="text-align:left">0.21</td>
+  <td style="text-align:left">-0.17</td>
+  <td style="text-align:left">0.866</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.09</td>
+  <td style="text-align:left">0.00</td>
+  <td style="text-align:left">1.01</td>
+  <td style="text-align:left">0.314</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">R2 = 0.102, F(4, 129) = 3.68, p = 0.007, Delta R2 = 0.007, p = 0.307</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left">Step 4</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">gender</td>
+  <td style="text-align:left">-0.18+</td>
+  <td style="text-align:left">0.12</td>
+  <td style="text-align:left">-1.96</td>
+  <td style="text-align:left">0.053</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">impulsivity</td>
+  <td style="text-align:left">0.29**</td>
+  <td style="text-align:left">0.02</td>
+  <td style="text-align:left">3.08</td>
+  <td style="text-align:left">0.003</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">reward_sensitivity</td>
+  <td style="text-align:left">-0.07</td>
+  <td style="text-align:left">0.22</td>
+  <td style="text-align:left">-0.82</td>
+  <td style="text-align:left">0.412</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">exploration</td>
+  <td style="text-align:left">0.06</td>
+  <td style="text-align:left">0.00</td>
+  <td style="text-align:left">0.70</td>
+  <td style="text-align:left">0.482</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:left">0.11</td>
+  <td style="text-align:left">0.46</td>
+  <td style="text-align:left">1.26</td>
+  <td style="text-align:left">0.210</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:left">0.20+</td>
+  <td style="text-align:left">0.31</td>
+  <td style="text-align:left">1.76</td>
+  <td style="text-align:left">0.081</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:left">-0.03</td>
+  <td style="text-align:left">0.32</td>
+  <td style="text-align:left">-0.24</td>
+  <td style="text-align:left">0.810</td>
+</tr>
+<tr>
+  <td style="text-align:left"></td>
+  <td style="text-align:left">R2 = 0.147, F(7, 126) = 3.11, p = 0.005, Delta R2 = 0.045, p = 0.090</td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+  <td style="text-align:left"></td>
+</tr>
+</tbody>
+</table>
+<p>The cohorts diverge here, and it is the substantive finding: for young adults
+risk does not add over traits, because impulsivity absorbs it. For adolescents
+it does.</p>
+<p><strong>On structuring Step 4.</strong> All subtypes go in together. They correlate between
+.25 and .55, so each beta is that subtype's unique contribution net of the
+others, and none reaches significance in the young adult model even though the
+block as a whole sits near threshold. Two alternatives, both fine if stated:
+composite in Step 4 and subtypes in Step 5, which tests &quot;does risk matter&quot; before
+&quot;which kind&quot;; or three separate Step 4 models, one subtype each, which reads each
+subtype cleanly but runs three tests where the paper ran one. What is not fine is
+trying each and reporting whichever makes risk significant.</p>
+<h1 id="11-social-versus-parasocial-table-6">11. Social versus parasocial — Table 6</h1>
+<p>If the link between social media and risk were just screen time, it would not
+matter what kind of platform the time was spent on. It does — risk tracks
+reciprocal platforms and not one-sided ones, in both cohorts.</p>
+<p>Steiger's z is the right test because the two correlations being compared share a
+variable (the risk subtype) and come from the same people. Comparing two r values
+directly would ignore that dependency and overstate the difference. The test
+needs a third correlation, social use with parasocial use, to know how dependent
+they are.</p>
+<pre><code>run_steiger &lt;- function(data) {
+  rows &lt;- list()
+  for (pred in risk_subtypes) {
+    r_social            &lt;- cor(data[[pred]],    data$social_use,     use = &quot;pairwise.complete.obs&quot;)
+    r_parasocial        &lt;- cor(data[[pred]],    data$parasocial_use, use = &quot;pairwise.complete.obs&quot;)
+    r_social_parasocial &lt;- cor(data$social_use, data$parasocial_use, use = &quot;pairwise.complete.obs&quot;)
+    n &lt;- nrow(na.omit(data[, c(pred, &quot;social_use&quot;, &quot;parasocial_use&quot;)]))
 
-<h3>Cohort split</h3>
+    test &lt;- cocor.dep.groups.overlap(r.jk = r_social,             # risk x social
+                                     r.jh = r_parasocial,         # risk x parasocial
+                                     r.kh = r_social_parasocial,  # social x parasocial
+                                     n    = n)
+    steiger &lt;- test@steiger1980
 
-<p>Age group was encoded in the PID: 2xxx adolescents, 3xxx and above young adults. If that
-convention does not carry over, change it in one place at the bottom of
-<code>00_setup.R</code> &mdash; every script splits through these two functions rather than
-hardcoding the comparison:</p>
+    rows[[length(rows) + 1]] &lt;- data.frame(
+      Risk_Subtype = pred,
+      r_social     = round(r_social, 2),
+      r_parasocial = round(r_parasocial, 2),
+      # Sign flipped so a negative z means social &gt; parasocial, matching the
+      # direction printed in Table 6. cocor orders the comparison the other way.
+      steiger_z    = round(-1 * steiger$statistic, 2),
+      p_value      = round(steiger$p.value, 3),
+      n            = n)
+  }
+  bind_rows(rows)
+}
 
-<pre><code>is_young_adult &lt;- function(d) d$pid &gt; 3000
-is_adolescent  &lt;- function(d) d$pid &lt; 3000</code></pre>
+steiger_adults &lt;- run_steiger(df[is_young_adult(df), ])
+steiger_teens  &lt;- run_steiger(df[is_adolescent(df), ])
+write_csv(steiger_adults, file.path(output_dir, &quot;study2_table7_steiger_adults.csv&quot;))
+write_csv(steiger_teens,  file.path(output_dir, &quot;study2_table8_steiger_teens.csv&quot;))
 
-<h2 id="alternatives">Defensible alternatives</h2>
+knitr::kable(steiger_adults, row.names = FALSE, caption = &quot;Panel A. Young Adults&quot;)
+</code></pre>
+<p>Table: Panel A. Young Adults</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left">Risk_Subtype</th>
+  <th style="text-align:right">r_social</th>
+  <th style="text-align:right">r_parasocial</th>
+  <th style="text-align:right">steiger_z</th>
+  <th style="text-align:right">p_value</th>
+  <th style="text-align:right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:right">0.27</td>
+  <td style="text-align:right">0.01</td>
+  <td style="text-align:right">-2.21</td>
+  <td style="text-align:right">0.027</td>
+  <td style="text-align:right">139</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:right">0.27</td>
+  <td style="text-align:right">0.11</td>
+  <td style="text-align:right">-1.35</td>
+  <td style="text-align:right">0.178</td>
+  <td style="text-align:right">139</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.21</td>
+  <td style="text-align:right">-0.06</td>
+  <td style="text-align:right">-2.18</td>
+  <td style="text-align:right">0.029</td>
+  <td style="text-align:right">139</td>
+</tr>
+</tbody>
+</table>
+<p>Table: Panel B. Adolescents</p>
+<table>
+<thead>
+<tr>
+  <th style="text-align:left">Risk_Subtype</th>
+  <th style="text-align:right">r_social</th>
+  <th style="text-align:right">r_parasocial</th>
+  <th style="text-align:right">steiger_z</th>
+  <th style="text-align:right">p_value</th>
+  <th style="text-align:right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td style="text-align:left">risk_high_neg</td>
+  <td style="text-align:right">0.17</td>
+  <td style="text-align:right">0.04</td>
+  <td style="text-align:right">-1.29</td>
+  <td style="text-align:right">0.198</td>
+  <td style="text-align:right">116</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_neg</td>
+  <td style="text-align:right">0.31</td>
+  <td style="text-align:right">0.10</td>
+  <td style="text-align:right">-2.05</td>
+  <td style="text-align:right">0.041</td>
+  <td style="text-align:right">116</td>
+</tr>
+<tr>
+  <td style="text-align:left">risk_low_pos</td>
+  <td style="text-align:right">0.28</td>
+  <td style="text-align:right">0.00</td>
+  <td style="text-align:right">-2.62</td>
+  <td style="text-align:right">0.009</td>
+  <td style="text-align:right">113</td>
+</tr>
+</tbody>
+</table>
+<h1 id="running-this-on-cohort-1">Running this on cohort 1</h1>
+<p><strong>High-stakes risk.</strong> Cohort 1 has no YRBS substance scoring. Set
+<code>use_high_stakes &lt;- FALSE</code> in section 1 and every table adjusts — the row drops
+out of Tables 5 and 6, the term drops out of Step 4, and total risk variety
+becomes a two-subtype composite. Step 4 then tests two risk predictors rather
+than three, so the ΔR² is not comparable to the published one; report it on its
+own terms.</p>
+<p>Study 1 used the BRP rather than the YRBS for this variable, so if cohort 1
+carries a different high-stakes measure there is precedent in the paper for
+swapping it in.</p>
+<p><strong>Participants without a phone.</strong> Jason and Lina have already worked out how
+people who report no phone at the start of the survey are handled. Confirm with
+them that it is taken care of in the cohort 1 export before running anything,
+since the MTES composite is z-scored across whoever is in the file.</p>
+<p><strong>Exclusions.</strong> In DEFT we dropped anyone missing one of the at-home cognition
+measures — Zuckerman, BIS, foraging. That happened through listwise deletion
+inside each model rather than as an explicit filtering step, so N varies a little
+between tables.</p>
+<h1 id="appendix-pnrt-ever-scores">Appendix: PNRT ever scores</h1>
+<p><code>risk_low_pos</code> and <code>risk_low_neg</code> arrive already scored. This is how, since the
+item-to-valence mapping is not recorded anywhere else.</p>
+<p>Every PNRT activity is asked twice: have you ever done this, and if so, how often
+in the past six months. The standard variety score uses the second question — an
+activity counts as 1 if there was any engagement in the past six months, 0
+otherwise.</p>
+<p>That was not available. In this version of the survey the frequency follow-up had
+no &quot;zero times&quot; option, so once a participant said yes to ever having done
+something they could not then report doing it zero times in the past six months.
+The frequency item cannot separate recent engagement from none, so variety was
+scored from the ever items instead.</p>
+<p>If the &quot;zero times&quot; option has since been added, the standard six-month score is
+available and is the better measure. It is not the same variable, though — report
+it as its own measure rather than as a replication of this one.</p>
+<p>Note <code>pnrt_personal</code> is scored negative and <code>pnrt_secret</code> positive.</p>
+<pre><code>pnrt_neg_items &lt;- c(&quot;pnrt_phone&quot;, &quot;pnrt_cheat&quot;, &quot;pnrt_skip&quot;, &quot;pnrt_personal&quot;,
+                    &quot;pnrt_snuckout&quot;, &quot;pnrt_sexy&quot;, &quot;pnrt_mph&quot;)            # 7
 
-<p>Two choices in the pipeline could reasonably have gone another way. Either alternative is
-fine if it is stated.</p>
+pnrt_pos_items &lt;- c(&quot;pnrt_audition&quot;, &quot;pnrt_newclub&quot;, &quot;pnrt_truth&quot;, &quot;pnrt_food&quot;,
+                    &quot;pnrt_leader&quot;, &quot;pnrt_like&quot;, &quot;pnrt_challenge&quot;, &quot;pnrt_newlook&quot;,
+                    &quot;pnrt_newsocial&quot;, &quot;pnrt_secret&quot;, &quot;pnrt_beliefs&quot;,
+                    &quot;pnrt_friend&quot;, &quot;pnrt_sport&quot;, &quot;pnrt_newpeople&quot;)       # 14
 
-<h4>Structuring Step 4</h4>
+pnrt &lt;- readr::read_csv(file.path(data_dir, &quot;raw&quot;, &quot;pnrt.csv&quot;), show_col_types = FALSE) %&gt;%
+  rename(PID = pid_assignment) %&gt;%
+  mutate(PID = clean_pid(PID)) %&gt;%
+  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
+         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
+</code></pre>
+<p>This mapping reproduces both scored columns exactly on all 254 complete cases.</p>
 
-<p>All three risk subtypes enter Step 4 together. They correlate between .25 and .55, so each
-beta is that subtype's unique contribution net of the others, and none reaches significance
-in the young adult model even though the block as a whole sits near threshold.</p>
-
-<p>The alternatives: put the composite in Step 4 and the subtypes in Step 5, which tests
-"does risk matter" before "which kind of risk" and avoids attributing shared risk variance to
-any one subtype; or run three separate Step 4 models, one subtype each, which gives the
-cleanest read on each subtype but means the betas are no longer unique contributions and you
-are running three tests where the paper ran one.</p>
-
-<p>What is not defensible is trying each ordering and reporting whichever one makes risk
-significant.</p>
-
-<h4>Scoring the PNRT by frequency</h4>
-
-<p>Using the frequency items instead of the ever items is the standard scoring and would be a
-legitimate robustness check &mdash; the columns are in <code>pnrt.csv</code> already. It
-answers a different question, though: rate rather than breadth. If cohort 1 is scored on
-frequency, it is not a replication of this paper's risk variables, and the YRBS composite
-would need the same treatment to stay consistent.</p>
-
-<h2 id="downloads">Scripts</h2>
-
-<p>These are the analysis scripts themselves, not a rewrite. What changed is comments,
-the file names (published table numbers rather than the submitted-draft numbering), and
-the cohort split being factored into two functions. Run against the Study 2 data they
-produce output identical to the original scripts, file for file.</p>
-
-<ul class="files">
-<li><a href="scripts/00_setup.R">00_setup.R</a> <span>Packages, paths, helpers, cohort split</span></li>
-<li><a href="scripts/01_data_prep.R">01_data_prep.R</a> <span>Builds every derived variable</span></li>
-<li><a href="scripts/02_descriptives_table4.R">02_descriptives_table4.R</a> <span>Table 4</span></li>
-<li><a href="scripts/03_correlations_table5.R">03_correlations_table5.R</a> <span>Table 5</span></li>
-<li><a href="scripts/04_risk_subtype_intercorrelations.R">04_risk_subtype_intercorrelations.R</a> <span>Section 3.2.5</span></li>
-<li><a href="scripts/05_shapley.R">05_shapley.R</a> <span>Section 3.2.3</span></li>
-<li><a href="scripts/06_mediation_tableS3.R">06_mediation_tableS3.R</a> <span>Table S3</span></li>
-<li><a href="scripts/07_hierarchical_regression_tableS4.R">07_hierarchical_regression_tableS4.R</a> <span>Table S4</span></li>
-<li><a href="scripts/08_steiger_table6.R">08_steiger_table6.R</a> <span>Table 6</span></li>
-</ul>
 
 <footer>
-<p>Study 2 pipeline for Zweben et al. (2026), <em>Technology in Society</em> 88, 103491.
-Repository: <a href="https://github.com/dzweben/clarifying-digital-media-risk-taking">dzweben/clarifying-digital-media-risk-taking</a></p>
+<p>Generated from <code>deft_study2_pipeline.Rmd</code>. Repository:
+<a href="https://github.com/dzweben/clarifying-digital-media-risk-taking">dzweben/clarifying-digital-media-risk-taking</a></p>
 </footer>
 
 </main>
