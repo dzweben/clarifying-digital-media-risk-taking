@@ -117,6 +117,7 @@ footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
   <a href="#top">Overview</a>
   <a href="#the-order-things-were-run-in-and-why" class="lvl2">The order things were run in, and why</a>
   <a href="#scoring-and-cleaning-are-yours" class="lvl2">Scoring and cleaning are yours</a>
+  <a href="#pnrt-important-caveat" class="lvl2">PNRT: important caveat</a>
   <a href="#what-you-need" class="lvl2">What you need</a>
   <a href="#1-configuration">1. Configuration</a>
   <a href="#2-load-and-rename">2. Load and rename</a>
@@ -130,7 +131,6 @@ footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
   <a href="#10-hierarchical-regression-table-s4">10. Hierarchical regression — Table S4</a>
   <a href="#11-social-versus-parasocial-table-6">11. Social versus parasocial — Table 6</a>
   <a href="#running-this-on-cohort-1">Running this on cohort 1</a>
-  <a href="#hold-up-the-pnrt-variety-score-in-case-you-need-it">Hold up — the PNRT variety score, in case you need it</a>
 </nav>
 <main id="top">
 
@@ -236,6 +236,40 @@ with one implausible foraging value still contributed everywhere else. That
 removed about half a percent of cells. Use whatever your standard is.</p>
 <p>If any of the scoring is unclear, ask me — happy to sit down and go through it
 rather than have it guessed at.</p>
+<h2 id="pnrt-important-caveat">PNRT: important caveat</h2>
+<p>Scoring is yours, but the PNRT is worth writing down because we scored it
+differently than usual and the item lists are not recorded anywhere else.</p>
+<p>Every PNRT activity is asked twice: have you ever done this, and if so, how often
+in the past six months. Variety is normally scored off the second question — an
+activity counts as 1 if there was any engagement in the past six months and 0 if
+there was none.</p>
+<p>We could not do that. For the first six months of LITE — before Avi and I were on
+it — the frequency follow-up gave participants no way to answer zero times in the
+past six months once they had already said yes to ever having done the activity.
+So for those participants the frequency item cannot tell recent engagement apart
+from none.</p>
+<p>We score variety off the ever items, and we have kept doing that since. The zero
+option may well have been fixed by now, but do not switch — the ever score is
+what DEFT uses, and cohort 1 needs to be scored the same way for the two to be
+comparable.</p>
+<p><code>pnrt_personal</code> counts as negative and <code>pnrt_secret</code> counts as positive, which is
+not what the names suggest.</p>
+<pre><code># Not run -- reference only.
+pnrt_neg_items &lt;- c(&quot;pnrt_phone&quot;, &quot;pnrt_cheat&quot;, &quot;pnrt_skip&quot;, &quot;pnrt_personal&quot;,
+                    &quot;pnrt_snuckout&quot;, &quot;pnrt_sexy&quot;, &quot;pnrt_mph&quot;)            # 7
+
+pnrt_pos_items &lt;- c(&quot;pnrt_audition&quot;, &quot;pnrt_newclub&quot;, &quot;pnrt_truth&quot;, &quot;pnrt_food&quot;,
+                    &quot;pnrt_leader&quot;, &quot;pnrt_like&quot;, &quot;pnrt_challenge&quot;, &quot;pnrt_newlook&quot;,
+                    &quot;pnrt_newsocial&quot;, &quot;pnrt_secret&quot;, &quot;pnrt_beliefs&quot;,
+                    &quot;pnrt_friend&quot;, &quot;pnrt_sport&quot;, &quot;pnrt_newpeople&quot;)       # 14
+
+pnrt &lt;- readr::read_csv(file.path(data_dir, &quot;raw&quot;, &quot;pnrt.csv&quot;), show_col_types = FALSE) %&gt;%
+  rename(PID = pid_assignment) %&gt;%
+  mutate(PID = clean_pid(PID)) %&gt;%
+  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
+         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
+</code></pre>
+<p>This mapping reproduces both scored columns exactly on all 254 complete cases.</p>
 <h2 id="what-you-need">What you need</h2>
 <pre><code>install.packages(c(&quot;dplyr&quot;, &quot;readr&quot;, &quot;tidyr&quot;, &quot;psych&quot;, &quot;Hmisc&quot;,
                    &quot;cocor&quot;, &quot;mediation&quot;, &quot;lm.beta&quot;, &quot;ShapleyValue&quot;))
@@ -290,6 +324,29 @@ particular dataset appears.</p>
 </code></pre>
 <p>Exploration is the only one of these that is not a finished score — it comes in
 as the raw task output and gets sign-flipped in section 4.</p>
+<p><strong>The platform split.</strong> <code>social_use</code> and <code>parasocial_use</code> are time on two groups
+of platforms, and the whole of Table 6 rests on the distinction:</p>
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>Platforms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>Social</strong> — reciprocal, you interact with people you know</td>
+  <td>Instagram, Snapchat, Facebook</td>
+</tr>
+<tr>
+  <td><strong>Parasocial</strong> — one-sided, you consume what strangers made</td>
+  <td>YouTube, TikTok, Pinterest, Twitter</td>
+</tr>
+</tbody>
+</table>
+<p>Cohort 1 will have platforms these lists do not cover. Sort any new one by
+whether the typical use is reciprocal interaction or one-way consumption, and
+write down what you decided — that call is a finding, not a formatting detail.</p>
 <p>Cohort split. PID encodes age group — 2xxx adolescents, 3xxx and above young
 adults — and that carries over to cohort 1.</p>
 <pre><code>is_young_adult &lt;- function(d) d$pid &gt; 3000
@@ -1462,40 +1519,6 @@ them that it is taken care of before running anything, since the MTES composite
 is z-scored across whoever is in the file.</p>
 <p><strong>Cohort split.</strong> PID still encodes age group, so <code>is_young_adult</code> and
 <code>is_adolescent</code> carry over unchanged.</p>
-<h1 id="hold-up-the-pnrt-variety-score-in-case-you-need-it">Hold up — the PNRT variety score, in case you need it</h1>
-<p>Scoring is yours, with one exception worth putting in writing, because the PNRT
-variety score in this paper is not the standard one and the item-to-valence
-mapping is not recorded anywhere else.</p>
-<p>Every PNRT activity is asked twice: have you ever done this, and if so, how often
-in the past six months. The standard variety score uses the second question — an
-activity counts as 1 if there was any engagement in the past six months, 0
-otherwise.</p>
-<p>That was not available. In this version of the survey the frequency follow-up had
-no &quot;zero times&quot; option, so once a participant said yes to ever having done
-something they could not then report doing it zero times in the past six months.
-The frequency item cannot separate recent engagement from none, so variety was
-scored from the ever items instead.</p>
-<p>If the &quot;zero times&quot; option has since been added, the standard six-month score is
-available and is the better measure — check before assuming you need the ever
-score again. It is not the same variable, though, so report it as its own measure
-rather than as a replication of this one.</p>
-<p>Note <code>pnrt_personal</code> is scored negative and <code>pnrt_secret</code> positive.</p>
-<pre><code># Not run -- reference only.
-pnrt_neg_items &lt;- c(&quot;pnrt_phone&quot;, &quot;pnrt_cheat&quot;, &quot;pnrt_skip&quot;, &quot;pnrt_personal&quot;,
-                    &quot;pnrt_snuckout&quot;, &quot;pnrt_sexy&quot;, &quot;pnrt_mph&quot;)            # 7
-
-pnrt_pos_items &lt;- c(&quot;pnrt_audition&quot;, &quot;pnrt_newclub&quot;, &quot;pnrt_truth&quot;, &quot;pnrt_food&quot;,
-                    &quot;pnrt_leader&quot;, &quot;pnrt_like&quot;, &quot;pnrt_challenge&quot;, &quot;pnrt_newlook&quot;,
-                    &quot;pnrt_newsocial&quot;, &quot;pnrt_secret&quot;, &quot;pnrt_beliefs&quot;,
-                    &quot;pnrt_friend&quot;, &quot;pnrt_sport&quot;, &quot;pnrt_newpeople&quot;)       # 14
-
-pnrt &lt;- readr::read_csv(file.path(data_dir, &quot;raw&quot;, &quot;pnrt.csv&quot;), show_col_types = FALSE) %&gt;%
-  rename(PID = pid_assignment) %&gt;%
-  mutate(PID = clean_pid(PID)) %&gt;%
-  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
-         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
-</code></pre>
-<p>This mapping reproduces both scored columns exactly on all 254 complete cases.</p>
 
 
 <footer>
