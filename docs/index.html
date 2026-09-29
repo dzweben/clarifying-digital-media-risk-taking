@@ -118,9 +118,9 @@ footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--rule);
   <a href="#caveat-1-the-pnrt">Caveat 1: the PNRT</a>
   <a href="#caveat-2-social-versus-parasocial-platforms">Caveat 2: social versus parasocial platforms</a>
   <a href="#the-analyses">The analyses</a>
-  <a href="#the-big-one-for-cohort-1" class="lvl2">The big one for cohort 1</a>
+  <a href="#cohort-1-no-high-stakes-risk" class="lvl2">Cohort 1: no high-stakes risk</a>
   <a href="#setup">Setup</a>
-  <a href="#step-0-three-variables-the-analysis-builds">Step 0: three variables the analysis builds</a>
+  <a href="#step-0-variables-the-analysis-builds">Step 0: Variables the analysis builds</a>
   <a href="#step-1-descriptives-table-4">Step 1: Descriptives (Table 4)</a>
   <a href="#step-2-correlations-table-5">Step 2: Correlations (Table 5)</a>
   <a href="#step-3-shapley">Step 3: Shapley</a>
@@ -214,13 +214,12 @@ row, so one bad foraging value did not cost that participant everything else.</p
 </tr>
 <tr>
   <td><code>yrbs_var</code></td>
-  <td>high-stakes negative risk</td>
+  <td>high-stakes negative risk. DEFT only, cohort 1 will not have it</td>
 </tr>
 </tbody>
 </table>
-<p>Two pieces of our scoring are not standard and are not written down anywhere
-else. They are the next two sections. Get either one wrong and nothing
-downstream will match, and nothing will look broken while it happens.</p>
+<p>Two things about how we scored are not standard, and are not written down
+anywhere else. They come first, because both of them affect everything after.</p>
 <h1 id="caveat-1-the-pnrt">Caveat 1: the PNRT</h1>
 <p>Positive risk, negative risk, and total variety all come off the PNRT, and we
 score it differently than it is normally scored.</p>
@@ -256,7 +255,8 @@ not what the names suggest.</p>
 gets built in step 0 rather than at scoring, because the three pieces have to be
 on the same footing first.</p>
 <h1 id="caveat-2-social-versus-parasocial-platforms">Caveat 2: social versus parasocial platforms</h1>
-<p>Table 6 is entirely about this split.</p>
+<p>Step 6 compares risk against each group separately, so the sorting has to be
+right.</p>
 <table>
 <thead>
 <tr>
@@ -277,10 +277,10 @@ on the same footing first.</p>
 </table>
 <p><code>SocialUsage</code> and <code>ParasocialUsage</code> are time summed within each group.</p>
 <p>Cohort 1 will have platforms these lists do not cover. Sort each new one by
-whether the typical use is reciprocal interaction or one-way consumption, and
-write down what you decided, because it feeds straight into the Table 6 result.</p>
+whether people mostly use it to interact or mostly to watch, and write down what
+you decided. It goes straight into the Table 6 result.</p>
 <h1 id="the-analyses">The analyses</h1>
-<p>Six of them. Each follows from what the one before it left open.</p>
+<p>Six of them, run in this order.</p>
 <table>
 <thead>
 <tr>
@@ -322,26 +322,23 @@ write down what you decided, because it feeds straight into the Table 6 result.<
 </tr>
 </tbody>
 </table>
-<p>Two things about that order matter.</p>
-<p><strong>Shapley comes before the regression, not instead of it.</strong> The predictors are
-correlated, so betas depend on entry order, and Shapley does not. The regression
-then asks the stricter question, whether risk adds anything once the traits have
-had first claim on the shared variance.</p>
-<p><strong>The subtype intercorrelations come before the subtype analyses.</strong> They are what
-establishes that the three kinds of risk are related but not interchangeable.
-Without that, splitting risk into three predictors in the last step has no
-motivation behind it.</p>
-<h2 id="the-big-one-for-cohort-1">The big one for cohort 1</h2>
-<p>Cohort 1 has no YRBS substance scoring, so there is no high-stakes negative risk.
-That variable is a row in Table 5, a row in Table 6, a term in the last step of
-Table S4, and one of the three pieces of total variety.</p>
-<p>Set <code>use_high_stakes &lt;- FALSE</code> below and every step adjusts. Total variety
-becomes positive and negative only. The last regression step tests two risk
-predictors instead of three, so its ΔR² is not comparable to the published one.
-Report it as its own result.</p>
-<p>Do not just leave the column out and carry on. Total variety is built with
-<code>na.rm = TRUE</code>, so a missing piece will not error. It will quietly average what
-is left and look fine.</p>
+<p>Two things about the order:</p>
+<p><strong>Shapley runs before the regression and does not replace it.</strong> The predictors
+are correlated, so betas depend on entry order and Shapley does not. The
+regression then asks whether risk adds anything once the traits have had first
+claim on the shared variance.</p>
+<p><strong>The subtype intercorrelations run before the subtype analyses.</strong> They show the
+three kinds of risk are related but not interchangeable, which is why the last
+step splits risk into three predictors instead of using the composite.</p>
+<h2 id="cohort-1-no-high-stakes-risk">Cohort 1: no high-stakes risk</h2>
+<p>DEFT had low-stakes positive, low-stakes negative, and high-stakes negative.
+Cohort 1 has no YRBS substance scoring, so it has the first two.</p>
+<p>Delete the <code>risk_high_neg</code> line from the column map and the rest follows. Total
+variety becomes the mean of two pieces, the high-stakes row drops out of Tables 5
+and 6, and the last regression step tests two risk predictors. That ΔR² is a new
+number rather than a replication of the published one, so report it that way.</p>
+<p>Do not leave the column mapped and empty. Total variety uses <code>na.rm = TRUE</code>, so
+it will average whatever is there and give you a number that looks fine.</p>
 <h1 id="setup">Setup</h1>
 <pre><code>install.packages(c(&quot;dplyr&quot;, &quot;readr&quot;, &quot;tidyr&quot;, &quot;psych&quot;, &quot;Hmisc&quot;,
                    &quot;cocor&quot;, &quot;mediation&quot;, &quot;lm.beta&quot;, &quot;ShapleyValue&quot;))
@@ -374,11 +371,8 @@ name, so this is the only thing to edit.</p>
   exploration        = &quot;foraging&quot;,                            # raw, apples per tree
   risk_low_pos       = &quot;positiverisk_ever_mean&quot;,
   risk_low_neg       = &quot;negativerisk_ever_mean&quot;,
-  risk_high_neg      = &quot;yrbs_var&quot;
+  risk_high_neg      = &quot;yrbs_var&quot;        # DEFT only. Delete this line for cohort 1.
 )
-
-use_high_stakes &lt;- TRUE
-if (!use_high_stakes) cols &lt;- cols[names(cols) != &quot;risk_high_neg&quot;]
 
 # PID encodes age group, and that carries over to cohort 1.
 is_young_adult &lt;- function(d) d$pid &gt; 3000
@@ -393,9 +387,9 @@ format_r &lt;- function(r, p) {
 }
 format_p_num &lt;- function(p) if (p &lt; .001) &quot;&lt; .001&quot; else sprintf(&quot;%.3f&quot;, p)
 </code></pre>
-<h1 id="step-0-three-variables-the-analysis-builds">Step 0: three variables the analysis builds</h1>
-<p>Everything else arrives scored. These three are analysis decisions rather than
-scoring, which is why they live here.</p>
+<h1 id="step-0-variables-the-analysis-builds">Step 0: Variables the analysis builds</h1>
+<p>Everything else arrives scored. These three are analysis decisions, so they
+happen here.</p>
 <p><strong>SSMU composite.</strong> The outcome for the whole paper. The three MTES subscales sit
 on different scales, since time is a sum across platforms and the other two are
 item means, so each gets z-scored before averaging. Otherwise time dominates.</p>
@@ -424,14 +418,9 @@ df &lt;- raw %&gt;%
          exploration = ifelse(exploration == 0, NA, exploration),
          exploration = -1 * exploration)
 
-if (!use_high_stakes) df$risk_high_neg &lt;- NA_real_
-
-# Subtypes in the order the tables list them.
-risk_subtypes &lt;- if (use_high_stakes) {
-  c(&quot;risk_high_neg&quot;, &quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;)
-} else {
-  c(&quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;)
-}
+# Whichever risk subtypes you mapped, in the order the tables list them. Drop a
+# line from the map above and everything downstream follows.
+risk_subtypes &lt;- intersect(c(&quot;risk_high_neg&quot;, &quot;risk_low_neg&quot;, &quot;risk_low_pos&quot;), names(df))
 
 # Each subtype is a proportion over a different number of items, so the Table 4
 # percentage is weighted by item count rather than a plain mean of the three.
@@ -780,10 +769,10 @@ explains 20.8% of the variance in MTES, and risk variety accounts for about half
 of that 20.8%, not half of MTES.</p>
 <p>It uses total variety rather than the three subtypes. Three overlapping risk
 terms would split one construct's contribution across them and make every risk
-share look small. The <code>na.omit</code> is listwise by necessity, since Shapley refits
-over every subset of predictors and needs one constant sample.</p>
-<p>First the subtype intercorrelations, which are reported in the text and are what
-justify treating the subtypes separately later.</p>
+share look small. The <code>na.omit</code> has to be listwise, since Shapley refits over
+every subset of predictors and needs one constant sample.</p>
+<p>First the subtype intercorrelations. They are reported in the text, and they are
+why the subtypes get treated separately later.</p>
 <pre><code>run_corr &lt;- function(d, x, y, cohort) {
   d2 &lt;- d[, c(x, y)]; d2 &lt;- d2[complete.cases(d2), ]
   if (nrow(d2) &lt; 3) return(data.frame(cohort, var1 = x, var2 = y, r = NA, p = NA, n = nrow(d2)))
@@ -916,7 +905,7 @@ knitr::kable(shap_adults, caption = &quot;Young adults&quot;)
 to the published one.</p>
 <h1 id="step-4-indirect-effects-table-s3">Step 4: Indirect effects (Table S3)</h1>
 <p>Trait to risk variety to SSMU, separately for each trait and each cohort. Six
-mediations at 5000 bootstrap resamples each. This is the slow one.</p>
+mediations at 5000 bootstrap resamples each. This one takes a few minutes.</p>
 <p>Risk taking is the mediator and SSMU is the outcome. The data are
 cross-sectional, so this is statistical accounting rather than causal order. The
 paper says &quot;accounted for&quot; throughout and never &quot;led to&quot;. Keep that.</p>
@@ -1299,8 +1288,9 @@ knitr::kable(hier_adults, row.names = FALSE, caption = &quot;Young adults&quot;)
 </tr>
 </tbody>
 </table>
-<p>The cohorts split here, and that is the main finding. For young adults risk does
-not add over traits, because impulsivity absorbs it. For adolescents it does.</p>
+<p>The cohorts differ here, and that is the main finding. For young adults risk
+does not add over traits, because impulsivity absorbs it. For adolescents it
+does.</p>
 <p>All the subtypes go into the last step together. They correlate between .25 and
 .55, so each beta is that subtype's unique contribution net of the others, and
 none of them reaches significance in the young adult model even though the block
@@ -1313,9 +1303,8 @@ makes risk significant.</p>
 <p><strong>Cohort 1:</strong> two risk predictors in the last step instead of three, so that ΔR²
 is a new result rather than a replication.</p>
 <h1 id="step-6-social-versus-parasocial-table-6">Step 6: Social versus parasocial (Table 6)</h1>
-<p>If this were only about screen time it would not matter what kind of platform the
-time was on. It does. Risk tracks reciprocal platforms and not one-sided ones, in
-both cohorts.</p>
+<p>If the effect were just screen time, platform type would not matter. It does.
+Risk tracks reciprocal platforms and not one-sided ones, in both cohorts.</p>
 <p>Steiger's z is the right test because the two correlations being compared share a
 variable, the risk subtype, and come from the same people. Comparing two r values
 directly ignores that and overstates the difference. The test needs a third
@@ -1421,8 +1410,8 @@ knitr::kable(st_adults, row.names = FALSE, caption = &quot;Panel A. Young Adults
 </tr>
 </tbody>
 </table>
-<p><strong>Cohort 1:</strong> the high-stakes row drops, and this step is only as good as the
-platform sorting in caveat 2.</p>
+<p><strong>Cohort 1:</strong> the high-stakes row drops, and this step depends on the platform
+sorting in caveat 2.</p>
 <h1 id="before-you-start">Before you start</h1>
 <ul>
 <li>Score the PNRT off the ever items, using the lists in caveat 1.</li>
@@ -1431,7 +1420,7 @@ platform sorting in caveat 2.</p>
 of the survey are treated. Check that it is sorted in the cohort 1 export
 before you run anything, since the SSMU composite is z-scored across whoever is
 in the file.</li>
-<li>Set <code>use_high_stakes &lt;- FALSE</code>.</li>
+<li>Delete the <code>risk_high_neg</code> line from the column map.</li>
 </ul>
 <p>Then run it top to bottom. Ask me when something does not look right.</p>
 
