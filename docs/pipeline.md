@@ -43,11 +43,10 @@ The columns this expects:
 | `zuckerman.mean` | reward sensitivity, 6 items |
 | `foraging` | apples per tree, raw task output |
 | `positiverisk_ever_mean` / `negativerisk_ever_mean` | PNRT, see caveat 1 |
-| `yrbs_var` | high-stakes negative risk |
+| `yrbs_var` | high-stakes negative risk. DEFT only, cohort 1 will not have it |
 
-Two pieces of our scoring are not standard and are not written down anywhere
-else. They are the next two sections. Get either one wrong and nothing
-downstream will match, and nothing will look broken while it happens.
+Two things about how we scored are not standard, and are not written down
+anywhere else. They come first, because both of them affect everything after.
 
 # Caveat 1: the PNRT
 
@@ -96,7 +95,8 @@ on the same footing first.
 
 # Caveat 2: social versus parasocial platforms
 
-Table 6 is entirely about this split.
+Step 6 compares risk against each group separately, so the sorting has to be
+right.
 
 | Type | Platforms |
 |---|---|
@@ -106,12 +106,12 @@ Table 6 is entirely about this split.
 `SocialUsage` and `ParasocialUsage` are time summed within each group.
 
 Cohort 1 will have platforms these lists do not cover. Sort each new one by
-whether the typical use is reciprocal interaction or one-way consumption, and
-write down what you decided, because it feeds straight into the Table 6 result.
+whether people mostly use it to interact or mostly to watch, and write down what
+you decided. It goes straight into the Table 6 result.
 
 # The analyses
 
-Six of them. Each follows from what the one before it left open.
+Six of them, run in this order.
 
 | Paper | Step | What it answers |
 |---|---|---|
@@ -122,32 +122,29 @@ Six of them. Each follows from what the one before it left open.
 | 3.2.5 | 5. Subtypes, then hierarchical regression, Table S4 | Which kind of risk, and does any of it survive controlling for traits |
 | 3.2.6 | 6. Social vs parasocial, Table 6 | Is this about screen time, or about the kind of platform |
 
-Two things about that order matter.
+Two things about the order:
 
-**Shapley comes before the regression, not instead of it.** The predictors are
-correlated, so betas depend on entry order, and Shapley does not. The regression
-then asks the stricter question, whether risk adds anything once the traits have
-had first claim on the shared variance.
+**Shapley runs before the regression and does not replace it.** The predictors
+are correlated, so betas depend on entry order and Shapley does not. The
+regression then asks whether risk adds anything once the traits have had first
+claim on the shared variance.
 
-**The subtype intercorrelations come before the subtype analyses.** They are what
-establishes that the three kinds of risk are related but not interchangeable.
-Without that, splitting risk into three predictors in the last step has no
-motivation behind it.
+**The subtype intercorrelations run before the subtype analyses.** They show the
+three kinds of risk are related but not interchangeable, which is why the last
+step splits risk into three predictors instead of using the composite.
 
-## The big one for cohort 1
+## Cohort 1: no high-stakes risk
 
-Cohort 1 has no YRBS substance scoring, so there is no high-stakes negative risk.
-That variable is a row in Table 5, a row in Table 6, a term in the last step of
-Table S4, and one of the three pieces of total variety.
+DEFT had low-stakes positive, low-stakes negative, and high-stakes negative.
+Cohort 1 has no YRBS substance scoring, so it has the first two.
 
-Set `use_high_stakes <- FALSE` below and every step adjusts. Total variety
-becomes positive and negative only. The last regression step tests two risk
-predictors instead of three, so its ΔR² is not comparable to the published one.
-Report it as its own result.
+Delete the `risk_high_neg` line from the column map and the rest follows. Total
+variety becomes the mean of two pieces, the high-stakes row drops out of Tables 5
+and 6, and the last regression step tests two risk predictors. That ΔR² is a new
+number rather than a replication of the published one, so report it that way.
 
-Do not just leave the column out and carry on. Total variety is built with
-`na.rm = TRUE`, so a missing piece will not error. It will quietly average what
-is left and look fine.
+Do not leave the column mapped and empty. Total variety uses `na.rm = TRUE`, so
+it will average whatever is there and give you a number that looks fine.
 
 # Setup
 
@@ -191,11 +188,8 @@ cols <- c(
   exploration        = "foraging",                            # raw, apples per tree
   risk_low_pos       = "positiverisk_ever_mean",
   risk_low_neg       = "negativerisk_ever_mean",
-  risk_high_neg      = "yrbs_var"
+  risk_high_neg      = "yrbs_var"        # DEFT only. Delete this line for cohort 1.
 )
-
-use_high_stakes <- TRUE
-if (!use_high_stakes) cols <- cols[names(cols) != "risk_high_neg"]
 
 # PID encodes age group, and that carries over to cohort 1.
 is_young_adult <- function(d) d$pid > 3000
@@ -211,10 +205,10 @@ format_r <- function(r, p) {
 format_p_num <- function(p) if (p < .001) "< .001" else sprintf("%.3f", p)
 ```
 
-# Step 0: three variables the analysis builds
+# Step 0: Variables the analysis builds
 
-Everything else arrives scored. These three are analysis decisions rather than
-scoring, which is why they live here.
+Everything else arrives scored. These three are analysis decisions, so they
+happen here.
 
 **SSMU composite.** The outcome for the whole paper. The three MTES subscales sit
 on different scales, since time is a sum across platforms and the other two are
@@ -250,14 +244,9 @@ df <- raw %>%
          exploration = ifelse(exploration == 0, NA, exploration),
          exploration = -1 * exploration)
 
-if (!use_high_stakes) df$risk_high_neg <- NA_real_
-
-# Subtypes in the order the tables list them.
-risk_subtypes <- if (use_high_stakes) {
-  c("risk_high_neg", "risk_low_neg", "risk_low_pos")
-} else {
-  c("risk_low_neg", "risk_low_pos")
-}
+# Whichever risk subtypes you mapped, in the order the tables list them. Drop a
+# line from the map above and everything downstream follows.
+risk_subtypes <- intersect(c("risk_high_neg", "risk_low_neg", "risk_low_pos"), names(df))
 
 # Each subtype is a proportion over a different number of items, so the Table 4
 # percentage is weighted by item count rather than a plain mean of the three.
@@ -422,11 +411,11 @@ of that 20.8%, not half of MTES.
 
 It uses total variety rather than the three subtypes. Three overlapping risk
 terms would split one construct's contribution across them and make every risk
-share look small. The `na.omit` is listwise by necessity, since Shapley refits
-over every subset of predictors and needs one constant sample.
+share look small. The `na.omit` has to be listwise, since Shapley refits over
+every subset of predictors and needs one constant sample.
 
-First the subtype intercorrelations, which are reported in the text and are what
-justify treating the subtypes separately later.
+First the subtype intercorrelations. They are reported in the text, and they are
+why the subtypes get treated separately later.
 
 
 ```r
@@ -495,7 +484,7 @@ to the published one.
 # Step 4: Indirect effects (Table S3)
 
 Trait to risk variety to SSMU, separately for each trait and each cohort. Six
-mediations at 5000 bootstrap resamples each. This is the slow one.
+mediations at 5000 bootstrap resamples each. This one takes a few minutes.
 
 Risk taking is the mediator and SSMU is the outcome. The data are
 cross-sectional, so this is statistical accounting rather than causal order. The
@@ -672,8 +661,9 @@ Table: Young adults
 |       |risk_high_neg                                                        |-0.03   |0.32 |-0.24 |0.810  |
 |       |R2 = 0.147, F(7, 126) = 3.11, p = 0.005, Delta R2 = 0.045, p = 0.090 |        |     |      |       |
 
-The cohorts split here, and that is the main finding. For young adults risk does
-not add over traits, because impulsivity absorbs it. For adolescents it does.
+The cohorts differ here, and that is the main finding. For young adults risk
+does not add over traits, because impulsivity absorbs it. For adolescents it
+does.
 
 All the subtypes go into the last step together. They correlate between .25 and
 .55, so each beta is that subtype's unique contribution net of the others, and
@@ -690,9 +680,8 @@ is a new result rather than a replication.
 
 # Step 6: Social versus parasocial (Table 6)
 
-If this were only about screen time it would not matter what kind of platform the
-time was on. It does. Risk tracks reciprocal platforms and not one-sided ones, in
-both cohorts.
+If the effect were just screen time, platform type would not matter. It does.
+Risk tracks reciprocal platforms and not one-sided ones, in both cohorts.
 
 Steiger's z is the right test because the two correlations being compared share a
 variable, the risk subtype, and come from the same people. Comparing two r values
@@ -744,8 +733,8 @@ Table: Panel B. Adolescents
 |risk_low_neg  |     0.31|         0.10|     -2.05|   0.040| 115|
 |risk_low_pos  |     0.28|         0.00|     -2.68|   0.007| 112|
 
-**Cohort 1:** the high-stakes row drops, and this step is only as good as the
-platform sorting in caveat 2.
+**Cohort 1:** the high-stakes row drops, and this step depends on the platform
+sorting in caveat 2.
 
 # Before you start
 
@@ -755,6 +744,6 @@ platform sorting in caveat 2.
   of the survey are treated. Check that it is sorted in the cohort 1 export
   before you run anything, since the SSMU composite is z-scored across whoever is
   in the file.
-- Set `use_high_stakes <- FALSE`.
+- Delete the `risk_high_neg` line from the column map.
 
 Then run it top to bottom. Ask me when something does not look right.
