@@ -204,8 +204,8 @@ def main() -> int:
 
 <div class="dl">
 <p>This page is the knitted output of
-<a href="deft_study2_pipeline.Rmd">deft_study2_pipeline.Rmd</a> &mdash; download that
-file and run it on your own data.</p>
+<a href="deft_study2_pipeline.Rmd">deft_study2_pipeline.Rmd</a>. Download that file
+and run it on your own data.</p>
 </div>
 
 {body}
