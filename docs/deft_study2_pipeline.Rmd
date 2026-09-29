@@ -79,6 +79,49 @@ removed about half a percent of cells. Use whatever your standard is.
 If any of the scoring is unclear, ask me — happy to sit down and go through it
 rather than have it guessed at.
 
+## PNRT: important caveat
+
+Scoring is yours, but the PNRT is worth writing down because we scored it
+differently than usual and the item lists are not recorded anywhere else.
+
+Every PNRT activity is asked twice: have you ever done this, and if so, how often
+in the past six months. Variety is normally scored off the second question — an
+activity counts as 1 if there was any engagement in the past six months and 0 if
+there was none.
+
+We could not do that. For the first six months of LITE — before Avi and I were on
+it — the frequency follow-up gave participants no way to answer zero times in the
+past six months once they had already said yes to ever having done the activity.
+So for those participants the frequency item cannot tell recent engagement apart
+from none.
+
+We score variety off the ever items, and we have kept doing that since. The zero
+option may well have been fixed by now, but do not switch — the ever score is
+what DEFT uses, and cohort 1 needs to be scored the same way for the two to be
+comparable.
+
+`pnrt_personal` counts as negative and `pnrt_secret` counts as positive, which is
+not what the names suggest.
+
+```{r pnrt, eval=FALSE}
+# Not run -- reference only.
+pnrt_neg_items <- c("pnrt_phone", "pnrt_cheat", "pnrt_skip", "pnrt_personal",
+                    "pnrt_snuckout", "pnrt_sexy", "pnrt_mph")            # 7
+
+pnrt_pos_items <- c("pnrt_audition", "pnrt_newclub", "pnrt_truth", "pnrt_food",
+                    "pnrt_leader", "pnrt_like", "pnrt_challenge", "pnrt_newlook",
+                    "pnrt_newsocial", "pnrt_secret", "pnrt_beliefs",
+                    "pnrt_friend", "pnrt_sport", "pnrt_newpeople")       # 14
+
+pnrt <- readr::read_csv(file.path(data_dir, "raw", "pnrt.csv"), show_col_types = FALSE) %>%
+  rename(PID = pid_assignment) %>%
+  mutate(PID = clean_pid(PID)) %>%
+  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
+         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
+```
+
+This mapping reproduces both scored columns exactly on all 254 complete cases.
+
 ## What you need
 
 ```{r packages, eval=FALSE}
@@ -149,6 +192,18 @@ cols <- c(
 
 Exploration is the only one of these that is not a finished score — it comes in
 as the raw task output and gets sign-flipped in section 4.
+
+**The platform split.** `social_use` and `parasocial_use` are time on two groups
+of platforms, and the whole of Table 6 rests on the distinction:
+
+| | Platforms |
+|---|---|
+| **Social** — reciprocal, you interact with people you know | Instagram, Snapchat, Facebook |
+| **Parasocial** — one-sided, you consume what strangers made | YouTube, TikTok, Pinterest, Twitter |
+
+Cohort 1 will have platforms these lists do not cover. Sort any new one by
+whether the typical use is reciprocal interaction or one-way consumption, and
+write down what you decided — that call is a finding, not a formatting detail.
 
 Cohort split. PID encodes age group — 2xxx adolescents, 3xxx and above young
 adults — and that carries over to cohort 1.
@@ -720,46 +775,3 @@ is z-scored across whoever is in the file.
 
 **Cohort split.** PID still encodes age group, so `is_young_adult` and
 `is_adolescent` carry over unchanged.
-
-# Hold up — the PNRT variety score, in case you need it
-
-Scoring is yours, with one exception worth putting in writing, because the PNRT
-variety score in this paper is not the standard one and the item-to-valence
-mapping is not recorded anywhere else.
-
-Every PNRT activity is asked twice: have you ever done this, and if so, how often
-in the past six months. The standard variety score uses the second question — an
-activity counts as 1 if there was any engagement in the past six months, 0
-otherwise.
-
-That was not available. In this version of the survey the frequency follow-up had
-no "zero times" option, so once a participant said yes to ever having done
-something they could not then report doing it zero times in the past six months.
-The frequency item cannot separate recent engagement from none, so variety was
-scored from the ever items instead.
-
-If the "zero times" option has since been added, the standard six-month score is
-available and is the better measure — check before assuming you need the ever
-score again. It is not the same variable, though, so report it as its own measure
-rather than as a replication of this one.
-
-Note `pnrt_personal` is scored negative and `pnrt_secret` positive.
-
-```{r pnrt, eval=FALSE}
-# Not run -- reference only.
-pnrt_neg_items <- c("pnrt_phone", "pnrt_cheat", "pnrt_skip", "pnrt_personal",
-                    "pnrt_snuckout", "pnrt_sexy", "pnrt_mph")            # 7
-
-pnrt_pos_items <- c("pnrt_audition", "pnrt_newclub", "pnrt_truth", "pnrt_food",
-                    "pnrt_leader", "pnrt_like", "pnrt_challenge", "pnrt_newlook",
-                    "pnrt_newsocial", "pnrt_secret", "pnrt_beliefs",
-                    "pnrt_friend", "pnrt_sport", "pnrt_newpeople")       # 14
-
-pnrt <- readr::read_csv(file.path(data_dir, "raw", "pnrt.csv"), show_col_types = FALSE) %>%
-  rename(PID = pid_assignment) %>%
-  mutate(PID = clean_pid(PID)) %>%
-  mutate(negativerisk_ever_mean = rowMeans(across(all_of(pnrt_neg_items)), na.rm = TRUE),
-         positiverisk_ever_mean = rowMeans(across(all_of(pnrt_pos_items)), na.rm = TRUE))
-```
-
-This mapping reproduces both scored columns exactly on all 254 complete cases.
